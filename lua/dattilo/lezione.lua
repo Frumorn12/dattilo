@@ -80,7 +80,7 @@ local function briefing(s)
   r[#r + 1] = {}
   r[#r + 1] = { { '   Tu adesso', 'DattiloAccento' } }
   for i, p in ipairs(L.passi) do
-    r[#r + 1] = { { '   ' .. i .. '  ', 'DattiloAccento' }, { string.format('%-24s', p[1]), 'DattiloForte' }, { p[2], 'DattiloMuto' } }
+    r[#r + 1] = { { '   ' .. i .. '  ', 'DattiloAccento' }, { string.format('%-24s', p[1]) .. ' ', 'DattiloForte' }, { p[2], 'DattiloMuto' } }
   end
   r[#r + 1] = {}
   local mosse = table.concat(vim.tbl_map(function(k) return '‹' .. k .. '›' end, L.mosse), ' ')
