@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# dattilo: scrivi C alla velocità delle mani. Avvia Neovim pulito con l'app.
+DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+if ! command -v nvim >/dev/null 2>&1; then
+  echo "dattilo: serve Neovim (nvim) 0.12 o più recente" >&2
+  exit 1
+fi
+exec nvim --clean -u "$DIR/init.lua" "$@"
