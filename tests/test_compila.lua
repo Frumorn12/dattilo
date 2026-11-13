@@ -64,4 +64,58 @@ T['programma che stampa all\'infinito viene fermato e troncato'] = function()
   vero(#chunks <= 60, 'pezzi ' .. #chunks)
   vero(table.concat(vim.tbl_map(function(c) return c[1] end, chunks)):find('troncat', 1, true))
 end
+local function scrivi_js(codice)
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, 'p')
+  vim.fn.writefile(vim.split(codice, '\n'), dir .. '/main.js')
+  return dir
+end
+local NODE = { tipo = 'comando', comando = { 'node', '{file}' } }
+local CHECK = { tipo = 'controllo', comando = { 'node', '--check', '{file}' } }
+
+T['node: esegue e cattura l\'uscita'] = function()
+  local r = compila.lancia(scrivi_js('console.log("ciao")'), 'main.js', NODE)
+  uguale({ r.ok, r.compilato, r.uscita, r.tipo }, { true, true, 'ciao\n', 'comando' })
+  uguale(compila.messaggio(r)[1][1], '$ node main.js\n')
+  local ultimo = compila.messaggio(r)[#compila.messaggio(r)][1]
+  uguale(ultimo, 'Eseguito senza errori.')
+end
+T['node: eccezione = non ok con diagnostica'] = function()
+  local r = compila.lancia(scrivi_js('throw new Error("x")'), 'main.js', NODE)
+  uguale(r.ok, false)
+  vero(r.diagnostica:find('Error: x', 1, true), r.diagnostica)
+end
+T['controllo: errore di sintassi'] = function()
+  local r = compila.lancia(scrivi_js('class A {'), 'main.js', CHECK)
+  uguale({ r.ok, r.compilato, r.uscita }, { false, false, '' })
+  vero(r.diagnostica:find('SyntaxError', 1, true), r.diagnostica)
+  local testo = table.concat(vim.tbl_map(function(c) return c[1] end, compila.messaggio(r)))
+  vero(testo:find('Errore: leggi qui sopra.', 1, true), testo)
+end
+T['controllo: sintassi corretta'] = function()
+  local r = compila.lancia(scrivi_js('export class A {}'), 'main.js', CHECK)
+  uguale(r.ok, true)
+  local testo = table.concat(vim.tbl_map(function(c) return c[1] end, compila.messaggio(r)))
+  vero(testo:find('Sintassi corretta.', 1, true), testo)
+end
+T['node mancante'] = function()
+  local path = vim.env.PATH
+  vim.env.PATH = '/nonesiste'
+  local ok, r = pcall(compila.lancia, scrivi_js('1'), 'main.js', NODE)
+  vim.env.PATH = path
+  vero(ok, tostring(r))
+  uguale(r.ok, false)
+  vero(r.diagnostica:find('node', 1, true), r.diagnostica)
+end
+T['fallito secondo attesa e cerca'] = function()
+  local rotto = compila.lancia(scrivi_js('class A {'), 'main.js', CHECK)
+  uguale(compila.fallito(rotto, 'errore', 'SyntaxError'), true)
+  uguale(compila.fallito(rotto, 'errore', 'ReferenceError'), false)
+  uguale(compila.fallito(rotto, 'errore', nil), true)
+  local buono = compila.lancia(scrivi_js('1'), 'main.js', CHECK)
+  uguale(compila.fallito(buono, 'errore', nil), false)
+  local w = compila.esegui(scrivi('#include <stdio.h>\nint main(void) { printf("%d %d\\n", 1); return 0; }'), 'prova.c')
+  uguale(compila.fallito(w, 'warning', 'format'), true)
+  uguale(compila.fallito(w, 'errore', nil), false)
+end
 return T
