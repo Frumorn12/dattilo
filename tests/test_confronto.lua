@@ -51,4 +51,8 @@ T['diff_riga'] = function()
   uguale({ c.diff_riga('printf("Hello\\n");', 'printf("Ciao\\n");') }, { 8, 12, 11 })
   uguale({ c.diff_riga('uguale', 'uguale') }, { 6, 6, 6 })
 end
+T['righe vuote in fondo non contano'] = function()
+  local r = c.confronta({ 'a', '}', '', '' }, { 'a', '}' })
+  uguale({ r.errori, r.finito }, { {}, true })
+end
 return T

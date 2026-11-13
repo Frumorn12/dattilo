@@ -11,7 +11,7 @@ end
 function M.comandi()
   vim.api.nvim_create_user_command('DattiloEsci', function()
     if require('dattilo.stato').schermo == 'home' then vim.cmd('qa!') else require('dattilo.home').apri() end
-  end, { desc = 'Torna alla home, o esce dalla home' })
+  end, { bang = true, desc = 'Torna alla home, o esce dalla home' })
   vim.api.nvim_create_user_command('DattiloRicomincia', function()
     local schermo = require('dattilo.stato').schermo
     if schermo == 'lezione' then require('dattilo.lezione').ricomincia()
@@ -19,7 +19,7 @@ function M.comandi()
       local dojo = require('dattilo.dojo')
       if dojo.e then require('dattilo.esercizio').ricomincia(dojo.e) end
     end
-  end, { desc = 'Ricomincia l\'esercizio' })
+  end, { bang = true, desc = 'Ricomincia l\'esercizio' })
   vim.api.nvim_create_user_command('Home', function() require('dattilo.home').apri() end, {})
   vim.api.nvim_create_user_command('Lezione', function(a) require('dattilo.lezione').apri(tonumber(a.args) or 1) end, { nargs = '?' })
   vim.api.nvim_create_user_command('Dojo', function(a) require('dattilo.dojo').apri(tonumber(a.args) or 1) end, { nargs = '?' })

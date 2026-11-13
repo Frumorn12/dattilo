@@ -1,6 +1,7 @@
 -- Una lezione: briefing → batti → modifica → rompi → spiegazione → fine.
 local batti = require('dattilo.batti')
 local compila = require('dattilo.compila')
+local confronto = require('dattilo.confronto')
 local esercizio = require('dattilo.esercizio')
 local progressi = require('dattilo.progressi')
 local schermo = require('dattilo.schermo')
@@ -43,7 +44,10 @@ function M.chiudi()
   if not s then return end
   if s.timer then s.timer:stop() s.timer:close() s.timer = nil end
   if s.e then esercizio.chiudi(s.e) s.e = nil end
-  if s.buf and vim.api.nvim_buf_is_valid(s.buf) then batti.stacca(s.buf) end
+  if s.buf and vim.api.nvim_buf_is_valid(s.buf) then
+    batti.stacca(s.buf)
+    vim.bo[s.buf].modified = false -- il file di lavoro non deve bloccare :qa
+  end
   pcall(vim.api.nvim_del_augroup_by_name, 'dattilo_lezione')
   M.s = nil
 end
@@ -126,7 +130,7 @@ local function salvato(s)
   local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
   local dir = vim.fn.fnamemodify(s.percorso, ':h')
   if s.passo == 'batti' then
-    if not vim.deep_equal(righe, L.batti.codice) then
+    if not confronto.confronta(righe, L.batti.codice).finito then
       local mancano = #table.concat(L.batti.codice, '\n') - #table.concat(righe, '\n')
       eco({ { mancano > 0 and ('"' .. L.file .. '" salvato. Mancano ancora ' .. mancano .. ' caratteri prima di compilare.')
         or ('"' .. L.file .. '" salvato, ma qualcosa non torna: cerca il rosso.'), 'DattiloGiallo' } })
@@ -147,7 +151,7 @@ local function salvato(s)
     if L.rompi.rotto(righe) then
       if (L.rompi.attesa == 'errore' and not r.compilato) or (L.rompi.attesa == 'warning' and r.warning) then s.rotto = true end
       eco(chunks)
-    elseif vim.deep_equal(righe, L.rompi.ripara) then
+    elseif confronto.confronta(righe, L.rompi.ripara).finito then
       if not s.rotto then
         chunks[#chunks + 1] = { '\nFunziona. Ma prima rompilo, come dice il suggerimento in alto.', 'DattiloGiallo' }
         eco(chunks)
@@ -197,6 +201,8 @@ function M.batti(s)
     tip(s)
   end })
   vim.api.nvim_create_autocmd('ModeChanged', { group = g, callback = function() if M.s == s then tip(s) end end })
+  vim.keymap.set('n', 'ZZ', '<Cmd>DattiloEsci<CR>', { buffer = s.buf })
+  vim.keymap.set('n', 'ZQ', '<Cmd>DattiloEsci<CR>', { buffer = s.buf })
   for _, k in ipairs({ '<Left>', '<Right>', '<Up>', '<Down>' }) do
     vim.keymap.set({ 'n', 'i' }, k, function() s.frecce = true tip(s) end, { buffer = s.buf })
   end

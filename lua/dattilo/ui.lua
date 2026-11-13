@@ -126,6 +126,14 @@ function M.finestra_tip()
   return tip.win
 end
 
+-- La finestra `win` non è più il suggerimento (es. è rimasta l'unica finestra).
+function M.dimentica_tip(win)
+  if tip.win == win then
+    tip.win, tip.args = nil, nil
+    vim.wo[win].winfixheight = false
+  end
+end
+
 function M.chiudi_tip()
   if tip.win and vim.api.nvim_win_is_valid(tip.win) and #vim.api.nvim_tabpage_list_wins(0) > 1 then
     vim.api.nvim_win_close(tip.win, true)

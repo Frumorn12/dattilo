@@ -54,4 +54,14 @@ T['messaggio: le righe di errore sono rosse'] = function()
   local rossi = vim.tbl_filter(function(c) return c[2] == 'DattiloRosso' and c[1]:find('error', 1, true) end, compila.messaggio(r))
   vero(#rossi >= 1)
 end
+T['programma che stampa all\'infinito viene fermato e troncato'] = function()
+  local t0 = vim.uv.hrtime()
+  local r = compila.esegui(scrivi('#include <stdio.h>\nint main(void) { for (;;) printf("Hello World\\n"); }'), 'prova.c')
+  vero((vim.uv.hrtime() - t0) / 1e9 < 4, 'troppo lento')
+  uguale({ r.ok, r.troncato }, { false, true })
+  vero(#r.uscita <= 64 * 1024, 'uscita ' .. #r.uscita)
+  local chunks = compila.messaggio(r)
+  vero(#chunks <= 60, 'pezzi ' .. #chunks)
+  vero(table.concat(vim.tbl_map(function(c) return c[1] end, chunks)):find('troncat', 1, true))
+end
 return T

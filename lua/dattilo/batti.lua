@@ -42,8 +42,9 @@ function M.aggiorna(buf)
     vim.api.nvim_buf_set_extmark(buf, ns, #righe - 1, 0, { virt_lines = vl })
   end
   st.errori = #r.errori
-  if r.finito and not st.finito then
-    st.finito = true
+  -- finito segue il testo; il tempo e la notifica si fermano alla prima volta
+  st.finito = r.finito
+  if r.finito and not st.metriche.finito then
     st.metriche:fine(ora())
     if st.cb.su_finito then st.cb.su_finito(st) end
   end
@@ -54,7 +55,7 @@ end
 -- il testo inserito in insert viene confrontato con il bersaglio alla stessa colonna.
 local function su_righe(st, buf, first, last_old, last_new)
   local nuove = vim.api.nvim_buf_get_lines(buf, first, last_new, false)
-  if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' and not st.finito then
+  if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' and not st.metriche.finito then
     if last_old - first == 1 and last_new - first == 1 then
       local da, testo = confronto.inseriti(st.prima[first + 1] or '', nuove[1])
       if da and st.salta and first + 1 == st.salta.riga then

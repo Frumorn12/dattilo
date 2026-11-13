@@ -26,7 +26,12 @@ M.ESERCIZI = {
 }
 
 function M.chiudi()
-  if M.e then require('dattilo.esercizio').chiudi(M.e) M.e = nil end
+  if M.e then
+    local buf = M.e.buf
+    require('dattilo.esercizio').chiudi(M.e)
+    M.e = nil
+    if vim.api.nvim_buf_is_valid(buf) then vim.bo[buf].modified = false end
+  end
 end
 
 function M.apri(i)
@@ -50,6 +55,8 @@ function M.apri(i)
   end
   schermo.mostra(buf, 'editor')
   pcall(vim.treesitter.start, buf, 'c')
+  vim.keymap.set('n', 'ZZ', '<Cmd>DattiloEsci<CR>', { buffer = buf })
+  vim.keymap.set('n', 'ZQ', '<Cmd>DattiloEsci<CR>', { buffer = buf })
   stato.schermo, stato.file = 'dojo', 'dojo.c'
   stato.titolo = 'Dojo Vim · cintura bianca'
   local cintura = {}

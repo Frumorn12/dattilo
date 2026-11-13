@@ -10,6 +10,26 @@ function M.finestra()
   return M.principale
 end
 
+-- Se la finestra principale viene chiusa (ZZ, :quit, <C-w>q) si torna alla home
+-- in una finestra sola, invece di restare con il riquadro del suggerimento.
+vim.api.nvim_create_autocmd('WinClosed', { group = vim.api.nvim_create_augroup('dattilo_schermo', { clear = true }), callback = function(a)
+  if not M.principale or tonumber(a.match) ~= M.principale then return end
+  M.principale = nil
+  vim.schedule(function()
+    local cur = vim.api.nvim_get_current_win()
+    require('dattilo.ui').dimentica_tip(cur)
+    local lezione, dojo = require('dattilo.lezione'), require('dattilo.dojo')
+    for _, e in ipairs({ lezione.s and lezione.s.e or false, dojo.e or false }) do
+      if e and e.fin == cur then e.fin = nil end
+    end
+    M.principale = cur
+    local wo = vim.wo[cur]
+    wo.winfixheight, wo.winbar, wo.statuscolumn = false, '', ''
+    require('dattilo.home').apri()
+    vim.o.cmdheight = 1
+  end)
+end })
+
 function M.buffer(nome)
   local b = buffers[nome]
   if b and vim.api.nvim_buf_is_valid(b) then return b end

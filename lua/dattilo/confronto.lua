@@ -21,10 +21,13 @@ function M.confronta(righe, bersaglio)
       if da then errori[#errori + 1] = { riga = i - 1, da = da, a = #b } end
     end
   end
-  local finito = #righe == #bersaglio
+  -- le righe vuote dopo la fine del bersaglio non contano
+  local fine = #righe
+  while fine > #bersaglio and righe[fine] == '' do fine = fine - 1 end
+  local finito = fine == #bersaglio
   if finito then
-    for i, b in ipairs(righe) do
-      if b ~= bersaglio[i] then finito = false break end
+    for i = 1, fine do
+      if righe[i] ~= bersaglio[i] then finito = false break end
     end
   end
   return { errori = errori, finito = finito }

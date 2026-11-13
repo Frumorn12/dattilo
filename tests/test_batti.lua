@@ -87,6 +87,15 @@ T['il rientro messo da Invio non conta come battuto'] = function()
   batti.aggiorna(buf)
   uguale({ st.metriche.giusti, st.metriche.sbagliati, st.finito }, { 26, 0, true })
 end
+T['finito segue il testo: cancellare dopo la fine lo rimette a falso'] = function()
+  local volte = 0
+  local buf, st = nuovo({ 'a', 'b' }, { su_finito = function() volte = volte + 1 end })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'a', 'b' })
+  batti.aggiorna(buf)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'a' })
+  batti.aggiorna(buf)
+  uguale({ st.finito, volte, st.metriche.finito }, { false, 1, true })
+end
 T['stacca toglie segni e mappa'] = function()
   local buf = nuovo({ 'abc' })
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'x' })

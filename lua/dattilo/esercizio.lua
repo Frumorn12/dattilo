@@ -90,7 +90,11 @@ local function aggiorna(e)
 end
 
 function M.ricomincia(e)
+  -- partenza caricata senza storia: u non deve tornare all'esercizio prima
+  local ul = vim.bo[e.buf].undolevels
+  vim.bo[e.buf].undolevels = -1
   vim.api.nvim_buf_set_lines(e.buf, 0, -1, false, e.o.partenza)
+  vim.bo[e.buf].undolevels = ul
   if vim.api.nvim_get_current_buf() == e.buf then
     vim.cmd('stopinsert')
     vim.api.nvim_win_set_cursor(0, { e.o.pos[1] + 1, e.o.pos[2] })
