@@ -62,4 +62,9 @@ T['progressi: le chiavi vecchie del corso C migrano una volta'] = function()
   local salvato = vim.json.decode(table.concat(vim.fn.readfile(xdg .. '/dattilo/progressi.json'), '\n'))
   vero(salvato.lezioni['corso-c-antirez/01-hello'] ~= nil)
 end
+T['il verificatore usa le opzioni della lezione (niente rientro automatico)'] = function()
+  local r = require('dattilo.controlla').pacchetto(RADICE .. '/tests/fixture/rientro')
+  local errori = vim.tbl_filter(function(x) return x.stato == 'errore' end, r.righe)
+  uguale(errori, {})
+end
 return T

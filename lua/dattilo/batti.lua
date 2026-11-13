@@ -7,7 +7,7 @@ local stati = {}
 
 local function ora() return vim.uv.hrtime() / 1e6 end
 
-local function opzioni(buf)
+function M.opzioni(buf)
   local bo = vim.bo[buf]
   bo.expandtab, bo.tabstop, bo.shiftwidth, bo.softtabstop = true, 4, 4, 4
   bo.autoindent, bo.smartindent, bo.cindent = false, false, false
@@ -86,9 +86,9 @@ function M.avvia(buf, bersaglio, cb)
   local st = { bersaglio = bersaglio, cb = cb or {}, metriche = metriche.nuova(), finito = false, errori = 0,
     prima = vim.api.nvim_buf_get_lines(buf, 0, -1, false) }
   stati[buf] = st
-  opzioni(buf)
+  M.opzioni(buf)
   local g = vim.api.nvim_create_augroup('dattilo_batti_' .. buf, { clear = true })
-  vim.api.nvim_create_autocmd('FileType', { group = g, buffer = buf, callback = function() opzioni(buf) end })
+  vim.api.nvim_create_autocmd('FileType', { group = g, buffer = buf, callback = function() M.opzioni(buf) end })
   vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, { group = g, buffer = buf, callback = function() M.aggiorna(buf) end })
   vim.api.nvim_buf_attach(buf, false, { on_lines = function(_, b, _, first, last_old, last_new)
     if stati[b] ~= st then return true end

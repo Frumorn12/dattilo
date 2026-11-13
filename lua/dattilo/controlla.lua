@@ -27,6 +27,7 @@ end
 local function prova_soluzione(m)
   local buf = vim.api.nvim_create_buf(true, true)
   vim.api.nvim_set_current_buf(buf)
+  require('dattilo.batti').opzioni(buf) -- le stesse opzioni del buffer della lezione
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, m.partenza)
   pcall(vim.api.nvim_win_set_cursor, 0, { m.pos[1] + 1, m.pos[2] })
   local ok, e = pcall(vim.api.nvim_feedkeys, vim.keycode(m.soluzione), 'xt', false)
