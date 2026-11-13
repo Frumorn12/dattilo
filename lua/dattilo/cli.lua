@@ -114,7 +114,18 @@ end
 local function comando_controlla(args)
   local dir = args[2]
   if not dir or vim.fn.isdirectory(dir) == 0 then scrivi('uso: dattilo controlla <cartella del pacchetto>') return 1 end
-  local r = require('dattilo.controlla').pacchetto(vim.fn.fnamemodify(dir, ':p'):gsub('/$', ''))
+  local assoluta = vim.fn.fnamemodify(dir, ':p'):gsub('/$', '')
+  -- il verificatore esegue codice e soluzioni del pacchetto: se si può, lo fa dentro la sandbox
+  local compila = require('dattilo.compila')
+  if compila.sandbox() then
+    local a = compila.argomenti_sandbox({}, { radice, assoluta }, { 'nvim', 'node', 'cc' })
+    vim.list_extend(a, { '--', 'nvim', '--clean', '--headless', '-l', radice .. '/lua/dattilo/cli.lua', 'controlla', assoluta })
+    local esito = vim.system(a, { text = true }):wait()
+    io.stdout:write(esito.stdout or '')
+    if esito.code ~= 0 and not (esito.stdout or ''):find('problemi', 1, true) then io.stdout:write(esito.stderr or '') end
+    return esito.code
+  end
+  local r = require('dattilo.controlla').pacchetto(assoluta)
   for _, x in ipairs(r.righe) do scrivi((x.stato == 'ok' and '  ✓ ' or '  ✗ ') .. x.testo) end
   scrivi(r.ok and 'Tutto a posto.' or 'Ci sono problemi.')
   return r.ok and 0 or 1

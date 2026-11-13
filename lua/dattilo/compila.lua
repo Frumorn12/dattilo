@@ -5,12 +5,24 @@ M.C = { tipo = 'compila', compila = { 'cc', '-Wall', '-Wextra', '-O2', '-fdiagno
 
 -- Sandbox: il codice delle lezioni (anche di pacchetti ricevuti da altri) gira con bwrap,
 -- senza rete, con il sistema in sola lettura e la home nascosta: scrive solo nella sua cartella.
-local sandbox_ok
+local sandbox_ok, senza_proc = nil, false
+-- Si prova con gli stessi argomenti dell'esecuzione vera; nei container montare /proc non è
+-- permesso, e allora si usa la variante che lascia il /proc di sola lettura.
 function M.sandbox()
   if vim.env.DATTILO_SANDBOX == '0' or vim.env.DATTILO_IN_SANDBOX == '1' then return false end
   if sandbox_ok == nil then
-    sandbox_ok = vim.fn.executable('bwrap') == 1
-      and vim.system({ 'bwrap', '--ro-bind', '/', '/', '--unshare-all', '--die-with-parent', 'true' }):wait().code == 0
+    sandbox_ok = false
+    if vim.fn.executable('bwrap') == 1 then
+      local dir = vim.fn.tempname()
+      vim.fn.mkdir(dir, 'p')
+      for _, variante in ipairs({ false, true }) do
+        senza_proc = variante
+        local a = M.argomenti_sandbox({ dir }, {}, {})
+        vim.list_extend(a, { '--chdir', dir, '--', 'true' })
+        if vim.system(a):wait().code == 0 then sandbox_ok = true break end
+      end
+      vim.fn.delete(dir, 'rf')
+    end
   end
   return sandbox_ok
 end
@@ -18,7 +30,9 @@ end
 -- Argomenti di bwrap: dir_rw scrivibili, dir_ro e gli eseguibili sotto la home visibili in sola lettura.
 function M.argomenti_sandbox(dir_rw, dir_ro, eseguibili)
   local home = vim.env.HOME or ''
-  local a = { 'bwrap', '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp' }
+  local a = { 'bwrap', '--ro-bind', '/', '/', '--dev', '/dev' }
+  if not senza_proc then vim.list_extend(a, { '--proc', '/proc' }) end
+  vim.list_extend(a, { '--tmpfs', '/tmp' })
   if home ~= '' and home ~= '/' then vim.list_extend(a, { '--tmpfs', home }) end
   for _, exe in ipairs(eseguibili or {}) do
     local percorso = vim.fn.exepath(exe)

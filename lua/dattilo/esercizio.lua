@@ -110,7 +110,7 @@ function M.avvia(o)
   e.gbuf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(e.gbuf, 0, -1, false, o.obiettivo or o.partenza)
   vim.bo[e.gbuf].modifiable = false
-  pcall(vim.treesitter.start, e.gbuf, 'c')
+  pcall(vim.treesitter.start, e.gbuf, o.linguaggio or 'c')
   e.fin = vim.api.nvim_open_win(e.gbuf, false, { split = 'below', win = -1, height = #(o.obiettivo or o.partenza) + 1 })
   local wo = vim.wo[e.fin]
   wo.number, wo.relativenumber, wo.cursorline, wo.winfixheight, wo.wrap = false, false, false, true, false

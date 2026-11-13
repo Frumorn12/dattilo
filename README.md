@@ -57,6 +57,8 @@ esegue il suo codice: `compila` (es. `cc`), `comando` (es. `node main.js`) o
   niente `node -e`, niente plugin del compilatore.
 - **Nomi semplici**: il file di una lezione è un nome come `main.js` o `hello.c`, mai un percorso.
 - **Soluzioni**: dei comandi `:` sono ammessi solo `:s`, `:sort`, `:noh` e i numeri di riga.
+- **Verificatore**: `dattilo controlla` esegue codice e soluzioni del pacchetto, quindi gira
+  anche lui dentro la sandbox.
 - **Sandbox**: il codice delle lezioni, quando fai `:w`, gira con `bwrap` (se c'è): senza rete,
   con il sistema in sola lettura e la home nascosta; scrive solo nella sua cartella di lavoro.
   Senza `bwrap` gira normalmente: in quel caso importa pacchetti solo da persone di cui ti fidi.
@@ -105,6 +107,7 @@ Progetto e piano: `docs/superpowers/specs/` e `docs/superpowers/plans/`.
 ```sh
 nvim --clean --headless -l tests/run.lua   # test unitari
 bash tests/e2e.sh                          # partita vera in tmux
+bash tests/rete/prova-rete.sh              # scambio tra due container su una rete finta + attacchi
 ```
 
 ## Licenza

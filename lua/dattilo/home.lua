@@ -238,7 +238,11 @@ end
 
 -- Esporta il pacchetto nella home: ~/<id>-<versione>.dattilo
 function M.esporta(v)
-  local testo, nome = require('dattilo.scambio').esporta(v.cartella)
+  local ok, testo, nome = pcall(require('dattilo.scambio').esporta, v.cartella)
+  if not ok or not nome then
+    vim.api.nvim_echo({ { 'Non riesco a esportare ' .. v.titolo .. ': ' .. (v.errori[1] and v.errori[1].msg or tostring(testo)), 'DattiloRosso' } }, true, {})
+    return
+  end
   local dest = vim.fn.expand('~/') .. nome
   vim.fn.writefile(vim.split(testo:gsub('\n$', ''), '\n', { plain = true }), dest)
   vim.api.nvim_echo({ { 'Esportato in ' .. dest .. ': mandalo a chi vuoi, si importa con dattilo importa.', 'DattiloVerde' } }, true, {})

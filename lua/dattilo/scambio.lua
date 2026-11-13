@@ -40,7 +40,7 @@ function M.leggi(testo)
   local err = {}
   local function e(file, riga, msg) err[#err + 1] = { file = file, riga = riga, msg = msg } end
   if #testo > MASSIMO then e('', 1, 'il file supera 5 MB') return nil, err end
-  testo = testo:gsub('\r\n', '\n') -- passato da Windows o da una mail
+  testo = testo:gsub('^\239\187\191', ''):gsub('\r\n', '\n') -- BOM, Windows o una mail
   local righe = vim.split(testo, '\n', { plain = true })
   if righe[#righe] == '' then table.remove(righe) end
   if righe[1] ~= INTESTAZIONE then e('', 1, 'non è un file .dattilo (prima riga: ' .. INTESTAZIONE .. ')') return nil, err end
@@ -57,6 +57,11 @@ function M.leggi(testo)
       corrente[#corrente + 1] = l
     end
   end
+  for p in pairs(file) do
+    for q in pairs(file) do
+      if vim.startswith(q, p .. '/') then e(q, 1, 'percorso usato sia come file sia come cartella: ' .. p) end
+    end
+  end
   if #err > 0 then return nil, err end
   if not file['pacchetto.json'] then e('pacchetto.json', 1, 'manca pacchetto.json') return nil, err end
   local m, em = formato.manifesto(table.concat(file['pacchetto.json'], '\n'), 'pacchetto.json')
@@ -66,7 +71,12 @@ function M.leggi(testo)
   table.sort(lezioni)
   for i, p in ipairs(lezioni) do
     local L, el = formato.lezione(table.concat(file[p], '\n'), vim.fn.fnamemodify(p, ':t'), i)
-    if not L then for _, x in ipairs(el) do e(p, x.riga, x.msg) end end
+    if not L then for _, x in ipairs(el) do e(p, x.riga, x.msg) end
+    else
+      L.esecuzione = pacchetti.esecuzione_lezione(L, m)
+      local motivo = formato.coerenza(L)
+      if motivo then e(p, 1, motivo) end
+    end
   end
   if #lezioni == 0 then e('lezioni/', 1, 'il pacchetto non ha lezioni') end
   if #err > 0 then return nil, err end
@@ -78,6 +88,9 @@ function M.anteprima(dati)
   local out = { m.titolo .. ' · versione ' .. m.versione .. (m.autore ~= '' and (' · di ' .. m.autore) or ''),
     dati.lezioni .. (dati.lezioni == 1 and ' lezione' or ' lezioni') }
   if m.descrizione ~= '' then table.insert(out, 2, m.descrizione) end
+  local es = m.esecuzione
+  local cmd = es.tipo == 'compila' and (table.concat(es.compila, ' ') .. ' && ' .. table.concat(es.esegui, ' ')) or table.concat(es.comando, ' ')
+  out[#out + 1] = 'Esegue il codice delle lezioni con: ' .. cmd .. (require('dattilo.compila').sandbox() and ' (in sandbox)' or ' (senza sandbox: bwrap non c\'è)')
   local mancano = {}
   for _, d in ipairs(m.richiede) do if not pacchetti.carica(d) then mancano[#mancano + 1] = d end end
   if #mancano > 0 then out[#out + 1] = 'Richiede anche: ' .. table.concat(mancano, ', ') .. ' (non installati)' end
@@ -97,16 +110,23 @@ function M.installa(dati, o)
     local vecchio = pacchetti.carica_cartella(dest)
     return false, m.id .. ' è già installato (versione ' .. (vecchio.m and vecchio.m.versione or '?') .. ')'
   end
-  local tmp = dest .. '.nuovo-' .. vim.uv.hrtime()
-  for p, righe in pairs(dati.file) do
-    vim.fn.mkdir(vim.fn.fnamemodify(tmp .. '/' .. p, ':h'), 'p')
-    vim.fn.writefile(righe, tmp .. '/' .. p)
+  -- si prepara fuori da pacchetti/, così un errore a metà non lascia un pacchetto finto
+  local tmp = require('dattilo.progressi').cartella() .. '/installazione-' .. vim.uv.hrtime()
+  local scritto, errore = pcall(function()
+    for p, righe in pairs(dati.file) do
+      vim.fn.mkdir(vim.fn.fnamemodify(tmp .. '/' .. p, ':h'), 'p')
+      vim.fn.writefile(righe, tmp .. '/' .. p)
+    end
+  end)
+  if not scritto then
+    vim.fn.delete(tmp, 'rf')
+    return false, 'non riesco a scrivere il pacchetto: ' .. tostring(errore)
   end
   if vim.fn.isdirectory(dest) == 1 then vim.fn.delete(dest, 'rf') end
   vim.fn.mkdir(vim.fn.fnamemodify(dest, ':h'), 'p')
   local ok, e = vim.uv.fs_rename(tmp, dest)
   pacchetti.dimentica()
-  if not ok then return false, 'non riesco a installare: ' .. tostring(e) end
+  if not ok then vim.fn.delete(tmp, 'rf') return false, 'non riesco a installare: ' .. tostring(e) end
   return true, m.titolo .. ' ' .. m.versione .. ' installato'
 end
 

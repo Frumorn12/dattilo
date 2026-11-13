@@ -56,22 +56,44 @@ local ESTENSIONI_CODICE = { c = true, js = true, mjs = true, cjs = true }
 -- Le soluzioni le esegue il verificatore: dei comandi ':' sono ammessi solo questi (più i numeri di riga).
 local EX_PERMESSI = { s = true, substitute = true, sor = true, sort = true, noh = true, nohlsearch = true }
 
+local INVIO = { cr = true, enter = true, ['return'] = true, nl = true, ['c-m'] = true, ['c-j'] = true }
+
+-- Comandi ':' che la soluzione esegue davvero (chiusi da un Invio), con i tasti speciali in mezzo.
+local function comandi_eseguiti(sol)
+  local out, i = {}, 1
+  while true do
+    local p = sol:find(':', i, true)
+    if not p then break end
+    local j, testo, eseguito = p + 1, '', false
+    while j <= #sol do
+      local tok = sol:match('^<[^<>]+>', j)
+      if tok then
+        local t = tok:sub(2, -2):lower()
+        if INVIO[t] then eseguito = true break end
+        if t == 'esc' or t == 'c-c' or t == 'c-[' then break end
+        testo, j = testo .. tok, j + #tok
+      else
+        testo, j = testo .. sol:sub(j, j), j + 1
+      end
+    end
+    if eseguito then out[#out + 1] = testo i = j + 1 else i = p + 1 end
+  end
+  return out
+end
+
 function M.soluzione_non_ammessa(sol)
   if sol:find('<C-r>=', 1, true) or sol:find('<C-R>=', 1, true) or sol:find('\\=', 1, true) or sol:find('!!', 1, true) then
     return 'la soluzione usa espressioni o filtri della shell'
   end
   if sol:find('[\r\n]') then return 'la soluzione contiene un a capo vero: usa <CR>' end
-  -- un ':' è un comando solo se viene eseguito con un Invio
-  local INVIO = { cr = true, enter = true, ['return'] = true, nl = true, ['c-m'] = true, ['c-j'] = true }
-  for seg, tasto in sol:gmatch(':([^<]*)<([^>]+)>') do
-    if INVIO[tasto:lower()] then
-      if seg:find('[!|]') then return 'la soluzione usa un comando con ! o |' end
-      local nome = seg:match("^[%s%d,.%%$'<>]*(%a+)")
-      if nome and not EX_PERMESSI[nome] then return 'comando non ammesso nella soluzione: :' .. nome .. ' (ammessi :s, :sort, :noh e i numeri di riga)' end
-    end
+  for _, testo in ipairs(comandi_eseguiti(sol)) do
+    if testo:find('[!|]') then return 'la soluzione usa un comando con ! o |' end
+    local nome = testo:gsub('<[^<>]+>', ''):match("^[%s%d,.%%$'<>]*(%a+)")
+    if nome and not EX_PERMESSI[nome] then return 'comando non ammesso nella soluzione: :' .. nome .. ' (ammessi :s, :sort, :noh e i numeri di riga)' end
   end
   return nil
 end
+
 
 local function trim(s) return (s:gsub('^%s+', ''):gsub('%s+$', '')) end
 
@@ -107,7 +129,7 @@ end
 
 -- Front matter tra due righe '---'. Ritorna tabella, righe del corpo, numero della prima riga del corpo, errori.
 function M.front_matter(testo, nome)
-  testo = testo:gsub('\r\n', '\n') -- file salvati con fine riga di Windows
+  testo = testo:gsub('^\239\187\191', ''):gsub('\r\n', '\n') -- BOM e fine riga di Windows
   local righe = vim.split(testo, '\n', { plain = true })
   local err = {}
   if righe[1] ~= '---' then return {}, righe, 1, err end
@@ -181,6 +203,16 @@ function M.lezione(testo, nome_file, indice)
   local function e(riga, msg) err[#err + 1] = { file = nome_file, riga = riga, msg = msg } end
   local fm, corpo, prima, err_fm = M.front_matter(testo, nome_file)
   vim.list_extend(err, err_fm)
+  for _, k in ipairs({ 'titolo', 'breve', 'file', 'tempo', 'fonte', 'etichetta', 'video', 'durata', 'video_da', 'esecuzione' }) do
+    if fm[k] ~= nil and type(fm[k]) ~= 'string' then e(1, k .. ' deve essere un testo') fm[k] = nil end
+  end
+  for _, k in ipairs({ 'mosse', 'concetti', 'comando' }) do
+    if fm[k] ~= nil and (type(fm[k]) ~= 'table' or #vim.tbl_filter(function(x) return type(x) ~= 'string' end, fm[k]) > 0) then
+      e(1, k .. ' deve essere una lista di testi, es. [a, b]') fm[k] = nil
+    end
+  end
+  if fm.video == '' then e(1, 'video vuoto') fm.video = nil end
+  if fm.video_da and not fm.video_da:match('^%d+:%d%d$') then e(1, 'video_da deve essere mm:ss') end
   if not fm.titolo or fm.titolo == '' then e(1, 'manca titolo nel front matter') end
   if not fm.file or fm.file == '' then e(1, 'manca file nel front matter')
   else
@@ -241,7 +273,7 @@ function M.lezione(testo, nome_file, indice)
       m.mostra = kv.mostra and vim.tbl_map(trim, vim.split(kv.mostra.v, ' · ', { plain = true })) or { m.soluzione }
       if kv.pos then
         local r, c = kv.pos.v:match('^(%d+):(%d+)$')
-        if r then m.pos = { tonumber(r) - 1, tonumber(c) - 1 } else e(kv.pos.riga, 'pos deve essere riga:colonna, es. 3:5') end
+        if r then m.pos, m.pos_riga = { tonumber(r) - 1, tonumber(c) - 1 }, kv.pos.riga else e(kv.pos.riga, 'pos deve essere riga:colonna, es. 3:5') end
       end
       L.modifiche[#L.modifiche + 1] = m
     elseif s.nome == 'Rompi' then
@@ -250,6 +282,7 @@ function M.lezione(testo, nome_file, indice)
         cerca = kv.cerca and kv.cerca.v, dopo = kv.dopo and kv.dopo.v or '‹u› annulla, poi ‹:w›.', esempio = s.blocchi[1] and s.blocchi[1].righe }
       if L.rompi.attesa ~= 'errore' and L.rompi.attesa ~= 'warning' then e(kv.attesa.riga, 'attesa deve essere errore o warning') end
       if L.rompi.consegna == '' then e(s.riga, 'manca consegna nel Rompi') end
+      if not L.rompi.esempio then e(s.riga, 'Rompi vuole un blocco con il testo rotto d\'esempio') end
     elseif s.nome == 'Spiegazione' then
       for _, r in ipairs(s.testo) do
         local n, t = r.t:match('^(%d+):%s*(.*)$')
@@ -271,6 +304,8 @@ function M.lezione(testo, nome_file, indice)
   local partenza = L.batti and L.batti.codice or {}
   for i, m in ipairs(L.modifiche) do
     m.partenza = partenza
+    local riga = partenza[m.pos[1] + 1]
+    if not riga or m.pos[2] > math.max(0, #riga - 1) then e(m.pos_riga or 1, 'pos fuori dal testo di partenza') end
     m.titolo = m.titolo or ('Modifica ' .. i .. '/' .. #L.modifiche)
     partenza = m.obiettivo
   end
@@ -286,7 +321,18 @@ function M.lezione(testo, nome_file, indice)
   return L, err
 end
 
+-- Controlli che servono l'esecuzione effettiva della lezione (quella del pacchetto o la sua).
+function M.coerenza(L)
+  if L.rompi and L.rompi.attesa == 'warning' and (not L.esecuzione or L.esecuzione.tipo ~= 'compila') then
+    return 'attesa: warning vale solo per i pacchetti che compilano (C)'
+  end
+  return nil
+end
+
+local function nullo(x) return x == nil or x == vim.NIL end
+
 function M.manifesto(testo, nome)
+  testo = testo:gsub('^\239\187\191', '')
   local err = {}
   local function e(msg) err[#err + 1] = { file = nome, riga = 1, msg = msg } end
   local ok, m = pcall(vim.json.decode, testo)
@@ -296,7 +342,24 @@ function M.manifesto(testo, nome)
   end
   if type(m.id) ~= 'string' or not m.id:match('^[a-z0-9%-]+$') then e('id mancante o non valido (solo minuscole, cifre e trattini)') end
   if type(m.titolo) ~= 'string' or m.titolo == '' then e('manca titolo') end
-  if type(m.versione) ~= 'string' or m.versione == '' then e('manca versione') end
+  if type(m.versione) ~= 'string' or not m.versione:match('^[%w.%-]+$') then e('versione mancante o non valida (es. 0.1.0)') end
+  for _, k in ipairs({ 'autore', 'descrizione', 'linguaggio' }) do
+    if nullo(m[k]) then m[k] = nil elseif type(m[k]) ~= 'string' then e(k .. ' deve essere un testo') end
+  end
+  if nullo(m.richiede) then m.richiede = nil
+  elseif type(m.richiede) ~= 'table' or #vim.tbl_filter(function(x) return type(x) ~= 'string' or not x:match('^[a-z0-9%-]+$') end, m.richiede) > 0 then
+    e('richiede deve essere una lista di id, es. ["aton"]')
+  end
+  if nullo(m.in_arrivo) then m.in_arrivo = nil
+  elseif type(m.in_arrivo) ~= 'table' then e('in_arrivo deve essere una lista')
+  else
+    for _, x in ipairs(m.in_arrivo) do
+      if type(x) ~= 'table' then e('ogni voce di in_arrivo deve essere un oggetto') break end
+      for _, k in ipairs({ 'etichetta', 'titolo', 'durata', 'video' }) do
+        if x[k] ~= nil and type(x[k]) ~= 'string' then e('in_arrivo: ' .. k .. ' deve essere un testo') break end
+      end
+    end
+  end
   local motivo = M.esecuzione_non_ammessa(m.esecuzione)
   if motivo then e(motivo) end
   if #err > 0 then return nil, err end

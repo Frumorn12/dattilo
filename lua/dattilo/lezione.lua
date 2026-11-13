@@ -69,28 +69,31 @@ local function briefing(s)
   ui.chiudi_tip()
   stato.file, stato.metriche = 'lezione ' .. s.L.numero, nil
   local L = s.L
-  local r = {
-    {},
-    { { '   ' .. L.titolo, 'DattiloForte' } },
-    L.video and { { '   antirez · ' .. (L.video.durata or '') .. ' · youtu.be/' .. L.video.id, 'DattiloMuto' } }
-      or { { '   ' .. (L.fonte and ('da ' .. L.fonte) or (pacchetti.carica(L.pacchetto) or { m = { titolo = '' } }).m.titolo), 'DattiloMuto' } },
-    {},
-  }
-  for _, l in ipairs(ui.a_capo(L.briefing, math.min(76, vim.o.columns - 6))) do r[#r + 1] = { { '   ' .. l, 'DattiloTesto' } } end
-  r[#r + 1] = {}
-  r[#r + 1] = { { '   Tu adesso', 'DattiloAccento' } }
+  local r = {}
+  -- aggiunge una riga; le righe vuote non si ripetono mai
+  local function riga(x) if not (#x == 0 and (#r == 0 or #r[#r] == 0)) then r[#r + 1] = x end end
+  riga({})
+  riga({ { '   ' .. L.titolo, 'DattiloForte' } })
+  local sotto
+  if L.video then sotto = (L.pacchetto == 'corso-c-antirez' and 'antirez · ' or 'video · ') .. (L.video.durata and (L.video.durata .. ' · ') or '') .. 'youtu.be/' .. L.video.id
+  elseif L.fonte then sotto = 'da ' .. L.fonte
+  else sotto = (pacchetti.carica(L.pacchetto) or { m = { titolo = '' } }).m.titolo end
+  if sotto ~= '' then riga({ { '   ' .. sotto, 'DattiloMuto' } }) end
+  riga({})
+  for _, l in ipairs(L.briefing ~= '' and ui.a_capo(L.briefing, math.min(76, vim.o.columns - 6)) or {}) do riga({ { '   ' .. l, 'DattiloTesto' } }) end
+  riga({})
+  riga({ { '   Tu adesso', 'DattiloAccento' } })
   for i, p in ipairs(L.passi) do
-    r[#r + 1] = { { '   ' .. i .. '  ', 'DattiloAccento' }, { string.format('%-24s', p[1]) .. ' ', 'DattiloForte' }, { p[2], 'DattiloMuto' } }
+    riga({ { '   ' .. i .. '  ', 'DattiloAccento' }, { string.format('%-24s', p[1]) .. ' ', 'DattiloForte' }, { p[2], 'DattiloMuto' } })
   end
-  r[#r + 1] = {}
-  local mosse = table.concat(vim.tbl_map(function(k) return '‹' .. k .. '›' end, L.mosse), ' ')
-  r[#r + 1] = schermo.con_tasti('   Mosse nuove   ', mosse)
-  r[#r + 1] = { { '   Concetti      ', 'DattiloTesto' }, { table.concat(L.concetti, ' · '), 'DattiloForte' } }
-  if #L.mosse == 0 then table.remove(r) end
-  if #L.concetti == 0 then table.remove(r) end
-  if L.tempo then r[#r + 1] = { { '   Tempo         ', 'DattiloTesto' }, { L.tempo, 'DattiloForte' } } end
-  r[#r + 1] = {}
-  r[#r + 1] = schermo.con_tasti('   ', '‹Invio› inizia   ' .. (L.video and ('‹v› apre il video al minuto ' .. L.video.da .. '   ') or '') .. '‹q› torna alla home', 'DattiloMuto')
+  riga({})
+  if #L.mosse > 0 then
+    riga(schermo.con_tasti('   Mosse nuove   ', table.concat(vim.tbl_map(function(k) return '‹' .. k .. '›' end, L.mosse), ' ')))
+  end
+  if #L.concetti > 0 then riga({ { '   Concetti      ', 'DattiloTesto' }, { table.concat(L.concetti, ' · '), 'DattiloForte' } }) end
+  if L.tempo then riga({ { '   Tempo         ', 'DattiloTesto' }, { L.tempo, 'DattiloForte' } }) end
+  riga({})
+  riga(schermo.con_tasti('   ', '‹Invio› inizia   ' .. (L.video and ('‹v› apre il video al minuto ' .. L.video.da .. '   ') or '') .. '‹q› torna alla home', 'DattiloMuto'))
   local buf = schermo.buffer('briefing')
   schermo.scrivi(buf, r)
   schermo.mostra(buf, 'testo')
@@ -114,7 +117,10 @@ function M.tip_batti(s, modo)
   if st.finito and modo == 'i' then
     return 'FATTO', 'Scritto in ' .. tempo(st.metriche:tempo(ora())) .. ' a ' .. st.metriche:wpm(ora()) .. ' parole al minuto. Ora ‹Esc› per tornare in NORMAL.', 'verde'
   end
-  if st.finito then return 'SALVA', 'Salva e compila: scrivi ‹:w› e premi ‹Invio›. dattilo lancia cc con i warning accesi.', 'verde' end
+  if st.finito then
+    local C = s.L.esecuzione and s.L.esecuzione.tipo == 'compila'
+    return 'SALVA', (C and 'Salva e compila' or 'Salva ed esegui') .. ': scrivi ‹:w› e premi ‹Invio›. dattilo lancia ' .. strumento(s.L) .. (C and ' con i warning accesi.' or '.'), 'verde'
+  end
   local r = vim.api.nvim_win_get_cursor(0)[1]
   local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
   local codice = s.L.batti.codice
@@ -276,6 +282,7 @@ function M.modifica(s, i)
   vim.api.nvim_set_current_win(schermo.finestra())
   s.e = esercizio.avvia(vim.tbl_extend('force', m, {
     buf = s.buf,
+    linguaggio = L.linguaggio,
     partenza = m.partenza or L.batti.codice,
     su_aggiorna = function() tip(s) vim.cmd('redrawstatus') end,
     su_fatto = function(tasti, n)

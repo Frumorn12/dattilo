@@ -17,7 +17,7 @@ local function leggi(percorso)
 end
 
 -- Comando predefinito quando una lezione chiede solo il tipo di esecuzione.
-local function esecuzione_lezione(L, m)
+function M.esecuzione_lezione(L, m)
   local e = L.esecuzione
   if not e then return m.esecuzione end
   if e.comando or e.tipo == m.esecuzione.tipo then return vim.tbl_extend('force', m.esecuzione, e) end
@@ -44,9 +44,11 @@ function M.carica_cartella(dir)
     local L, e = formato.lezione(leggi(f) or '', nome, #P.lezioni + 1)
     if L then
       L.pacchetto, L.linguaggio = m.id, m.linguaggio
-      L.esecuzione = esecuzione_lezione(L, m)
+      L.esecuzione = M.esecuzione_lezione(L, m)
       L.cartella_file = vim.fn.isdirectory(dir .. '/file') == 1 and (dir .. '/file') or nil
-      P.lezioni[#P.lezioni + 1] = L
+      local motivo = formato.coerenza(L)
+      if motivo then P.errori[#P.errori + 1] = { file = nome, riga = 1, msg = motivo }
+      else P.lezioni[#P.lezioni + 1] = L end
     else
       vim.list_extend(P.errori, e)
     end
@@ -60,7 +62,10 @@ local function cartelle()
   for _, base in ipairs({ M.cartella_interna(), M.cartella_utente() }) do
     local dirs = vim.fn.glob(base .. '/*', false, true)
     table.sort(dirs)
-    for _, d in ipairs(dirs) do if vim.fn.isdirectory(d) == 1 then out[#out + 1] = d end end
+    for _, d in ipairs(dirs) do
+      -- solo cartelle con un nome da id: niente avanzi di installazioni o cartelle estranee
+      if vim.fn.isdirectory(d) == 1 and vim.fn.fnamemodify(d, ':t'):match('^[a-z0-9%-]+$') then out[#out + 1] = d end
+    end
   end
   return out
 end
