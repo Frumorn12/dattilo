@@ -96,6 +96,18 @@ T['finito segue il testo: cancellare dopo la fine lo rimette a falso'] = functio
   batti.aggiorna(buf)
   uguale({ st.finito, volte, st.metriche.finito }, { false, 1, true })
 end
+T['lezioni lunghe: sotto il cursore resta spazio per il fantasma'] = function()
+  local bersaglio = {}
+  for i = 1, 80 do bersaglio[i] = 'console.log(' .. i .. ');' end
+  local buf = nuovo(bersaglio)
+  vim.api.nvim_win_set_height(0, 20)
+  local scritte = vim.list_slice(bersaglio, 1, 30)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, scritte)
+  vim.api.nvim_win_set_cursor(0, { 30, 0 })
+  batti.scorri(buf)
+  local top = vim.fn.line('w0')
+  vero(30 - top <= 8, 'il cursore è troppo in basso: prima riga ' .. top)
+end
 T['stacca toglie segni e mappa'] = function()
   local buf = nuovo({ 'abc' })
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'x' })

@@ -94,6 +94,10 @@ function M.avvia(buf, bersaglio, cb)
     if stati[b] ~= st then return true end
     su_righe(st, b, first, last_old, last_new)
   end })
+  -- dopo il ridisegno: Neovim riposiziona la finestra quando il cursore si muove, e lo annullerebbe
+  vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, { group = g, buffer = buf, callback = function()
+    vim.schedule(function() if stati[buf] then M.scorri(buf) end end)
+  end })
   vim.api.nvim_create_autocmd('InsertLeave', { group = g, buffer = buf, callback = function() st.metriche:pausa(ora()) end })
   vim.api.nvim_create_autocmd('InsertEnter', { group = g, buffer = buf, callback = function() st.metriche:riprendi(ora()) end })
   vim.keymap.set('i', '<CR>', function()
@@ -104,6 +108,20 @@ function M.avvia(buf, bersaglio, cb)
   end, { buffer = buf, expr = true, replace_keycodes = false, desc = 'dattilo: a capo con il rientro del bersaglio' })
   M.aggiorna(buf)
   return st
+end
+
+-- Tiene il cursore nel terzo alto della finestra: sotto restano visibili le righe
+-- ancora da scrivere, anche quando sono testo virtuale dopo l'ultima riga del buffer.
+function M.scorri(buf)
+  local win = vim.fn.bufwinid(buf)
+  if win == -1 then return end
+  vim.api.nvim_win_call(win, function()
+    local h = vim.api.nvim_win_get_height(win)
+    local riga = vim.api.nvim_win_get_cursor(win)[1]
+    local limite = math.max(1, math.floor(h / 3))
+    local top = vim.fn.line('w0')
+    if riga - top > limite then vim.fn.winrestview({ topline = riga - limite }) end
+  end)
 end
 
 function M.stacca(buf)
