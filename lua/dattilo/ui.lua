@@ -118,7 +118,7 @@ function M.finestra_tip()
     tip.buf = vim.api.nvim_create_buf(false, true)
     vim.bo[tip.buf].bufhidden = 'hide'
   end
-  tip.win = vim.api.nvim_open_win(tip.buf, false, { split = 'above', win = -1, height = 4 })
+  tip.win = vim.api.nvim_open_win(tip.buf, false, { split = 'above', win = -1, height = 5 })
   local wo = vim.wo[tip.win]
   wo.number, wo.relativenumber, wo.cursorline, wo.wrap, wo.list = false, false, false, false, false
   wo.signcolumn, wo.foldcolumn, wo.statuscolumn, wo.winfixheight = 'no', '0', '', true
@@ -136,7 +136,7 @@ end
 local function disegna_tip()
   if not tip.args then return end
   local win = M.finestra_tip()
-  local righe, segni = M.riquadro(tip.args[1], tip.args[2], vim.o.columns, 2, tip.args[3])
+  local righe, segni = M.riquadro(tip.args[1], tip.args[2], vim.o.columns, 3, tip.args[3])
   vim.bo[tip.buf].modifiable = true
   vim.api.nvim_buf_set_lines(tip.buf, 0, -1, false, righe)
   vim.bo[tip.buf].modifiable = false
@@ -144,7 +144,7 @@ local function disegna_tip()
   for _, s in ipairs(segni) do
     vim.api.nvim_buf_set_extmark(tip.buf, ns, s.riga, s.da, { end_col = s.a, hl_group = s.hl })
   end
-  if vim.api.nvim_win_get_height(win) ~= 4 then vim.api.nvim_win_set_height(win, 4) end
+  if vim.api.nvim_win_get_height(win) ~= 5 then vim.api.nvim_win_set_height(win, 5) end
 end
 
 function M.tip(titolo, testo, tipo)

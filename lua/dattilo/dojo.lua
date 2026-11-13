@@ -25,4 +25,48 @@ M.ESERCIZI = {
     par = 13, soluzione = 'jyypci"Bau\\n<Esc>', mostra = { 'j', 'yy', 'p', 'ci"', 'Bau\\n', 'Esc' } },
 }
 
+function M.chiudi()
+  if M.e then require('dattilo.esercizio').chiudi(M.e) M.e = nil end
+end
+
+function M.apri(i)
+  local esercizio = require('dattilo.esercizio')
+  local schermo = require('dattilo.schermo')
+  local stato = require('dattilo.stato')
+  local ui = require('dattilo.ui')
+  require('dattilo.lezione').chiudi()
+  M.chiudi()
+  i = (i - 1) % #M.ESERCIZI + 1
+  M.i = i
+  local ex = M.ESERCIZI[i]
+  local buf = schermo.buffer('dojo.c')
+  vim.bo[buf].buftype, vim.bo[buf].modifiable = 'acwrite', true
+  vim.bo[buf].expandtab, vim.bo[buf].shiftwidth, vim.bo[buf].tabstop = true, 4, 4
+  if not M.scrittura then
+    M.scrittura = vim.api.nvim_create_autocmd('BufWriteCmd', { buffer = buf, callback = function()
+      vim.bo[buf].modified = false
+      vim.api.nvim_echo({ { 'Nel Dojo non si compila: basta arrivare all\'obiettivo.', 'DattiloGiallo' } }, false, {})
+    end })
+  end
+  schermo.mostra(buf, 'editor')
+  pcall(vim.treesitter.start, buf, 'c')
+  stato.schermo, stato.file = 'dojo', 'dojo.c'
+  stato.titolo = 'Dojo Vim · cintura bianca'
+  local cintura = {}
+  for k = 1, #M.ESERCIZI do cintura[k] = k < i and '●' or k == i and '◉' or '○' end
+  stato.destra = table.concat(cintura) .. '  ' .. i .. '/' .. #M.ESERCIZI
+  vim.cmd('redrawtabline')
+  M.e = esercizio.avvia(vim.tbl_extend('force', ex, {
+    buf = buf,
+    su_aggiorna = function(e) if M.e == e then ui.tip(esercizio.testo_tip(e)) vim.cmd('redrawstatus') end end,
+    su_fatto = function(tasti, n)
+      vim.api.nvim_echo({ { ex.titolo .. ': fatto in ' .. tasti .. ' tasti. Par ' .. ex.par .. ' ' .. string.rep('★', n) .. string.rep('☆', 3 - n), 'DattiloVerde' },
+        { '\nLa via corta: ' .. table.concat(ex.mostra, '  '), 'DattiloTesto' } }, true, {})
+      vim.schedule(function() M.apri(i + 1) end)
+    end,
+  }))
+  stato.metriche = function() return M.e and { 'tasti ' .. M.e.tasti, 'par ' .. ex.par } or {} end
+  ui.tip(esercizio.testo_tip(M.e))
+end
+
 return M

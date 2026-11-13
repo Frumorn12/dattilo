@@ -69,7 +69,7 @@ repo al `runtimepath`, aggiunge tokyonight se è installato da lazy.nvim
 ### Schermo
 
 - In alto la `tabline`: nome dell'app, schermata, avanzamento della lezione.
-- Sotto, la finestra del suggerimento: uno split fisso alto 4 righe, con il
+- Sotto, la finestra del suggerimento: uno split fisso alto 5 righe (3 di testo), con il
   riquadro disegnato in caratteri di box e i tasti evidenziati. Non riceve il fuoco.
 - Al centro l'editor: numeri relativi, riga del cursore, colonna dei segni.
 - In basso la statusline globale: modalità, file, parole al minuto, precisione,

@@ -52,7 +52,8 @@ T['il suggerimento segue la larghezza del terminale'] = function()
   vim.o.columns = 60
   vim.api.nvim_exec_autocmds('VimResized', {})
   uguale(dw(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]), 60)
-  uguale(vim.api.nvim_win_get_height(ui.finestra_tip()), 4)
+  uguale(vim.api.nvim_win_get_height(ui.finestra_tip()), 5)
+  uguale(#vim.api.nvim_buf_get_lines(buf, 0, -1, false), 5)
 end
 T['la finestra del suggerimento non tiene il fuoco'] = function()
   local tip = ui.finestra_tip()
