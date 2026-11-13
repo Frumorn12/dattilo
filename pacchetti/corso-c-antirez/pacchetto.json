@@ -1,0 +1,243 @@
+{
+  "id": "corso-c-antirez",
+  "titolo": "Impariamo il C, di antirez",
+  "versione": "1.0.0",
+  "autore": "Andrea Brescia",
+  "descrizione": "Il corso di C di Salvatore Sanfilippo (antirez), lezione per lezione.",
+  "linguaggio": "c",
+  "richiede": [],
+  "esecuzione": {
+    "tipo": "compila",
+    "compila": [
+      "cc",
+      "-Wall",
+      "-Wextra",
+      "-O2",
+      "-fdiagnostics-color=never",
+      "-o",
+      "{nome}",
+      "{file}"
+    ],
+    "esegui": [
+      "./{nome}"
+    ]
+  },
+  "in_arrivo": [
+    {
+      "video": "r6mU_IHXEps",
+      "etichetta": "App. L2",
+      "titolo": "Variabili locali, registri, stack e convenzione di chiamata",
+      "durata": "22:06"
+    },
+    {
+      "video": "mw4gUqsGPZw",
+      "etichetta": "L3",
+      "titolo": "Variabili locali, globali, static e passaggio per valore",
+      "durata": "25:38"
+    },
+    {
+      "video": "YNsXyasn4R4",
+      "etichetta": "L4",
+      "titolo": "sizeof, limits.h, tipi interi e struttura del programma",
+      "durata": "27:49"
+    },
+    {
+      "video": "SWWHqgSwQFw",
+      "etichetta": "L5",
+      "titolo": "Stringhe come array di char e terminatore NUL",
+      "durata": "25:52"
+    },
+    {
+      "video": "lc7aYXNl1T8",
+      "etichetta": "L6",
+      "titolo": "if, else, blocchi, goto e while",
+      "durata": "30:38"
+    },
+    {
+      "video": "HCRthhjbfAg",
+      "etichetta": "L7",
+      "titolo": "Tail call, while, for e switch",
+      "durata": "30:35"
+    },
+    {
+      "video": "c5atNuYdKK8",
+      "etichetta": "L8",
+      "titolo": "Game of Life: griglia, vicini e wrap-around",
+      "durata": "53:48"
+    },
+    {
+      "video": "BBgZs-jd_QY",
+      "etichetta": "L9",
+      "titolo": "Puntatori: indirizzi, &, * e NULL",
+      "durata": "17:07"
+    },
+    {
+      "video": "lc7hL9Wt-ho",
+      "etichetta": "L10",
+      "titolo": "Dereferenziazione, aritmetica dei puntatori e stringhe",
+      "durata": "28:20"
+    },
+    {
+      "video": "msGzuneFpDU",
+      "etichetta": "L11",
+      "titolo": "Puntatori short, basi numeriche e stringhe prefisse",
+      "durata": "21:27"
+    },
+    {
+      "video": "ZkaKwWXJXs8",
+      "etichetta": "L12",
+      "titolo": "Stringhe a lunghezza prefissa in C",
+      "durata": "27:27"
+    },
+    {
+      "video": "9AhaOdEBmPc",
+      "etichetta": "L13",
+      "titolo": "Prefisso a 4 byte e reference counting",
+      "durata": "15:19"
+    },
+    {
+      "video": "p4IMHau2lq8",
+      "etichetta": "L14",
+      "titolo": "Le struct spiegate con le frazioni",
+      "durata": "34:16"
+    },
+    {
+      "video": "aTT2W5NACEY",
+      "etichetta": "L15",
+      "titolo": "Tac: lista linkata per invertire un file",
+      "durata": "26:09"
+    },
+    {
+      "video": "VPs_QtlLNcs",
+      "etichetta": "L16",
+      "titolo": "PLS con struct, retain e release",
+      "durata": "23:38"
+    },
+    {
+      "video": "grkIJjw6o18",
+      "etichetta": "L17",
+      "titolo": "char str[] contro char *str e xdump",
+      "durata": "37:56"
+    },
+    {
+      "video": "soiBgJjAmP8",
+      "etichetta": "Speciale",
+      "titolo": "Binary search tree scritto a memoria",
+      "durata": "22:26"
+    },
+    {
+      "video": "3w73xjUSUEU",
+      "etichetta": "L18",
+      "titolo": "typedef, FILE e la libreria stdio",
+      "durata": "22:01"
+    },
+    {
+      "video": "QWLJ7CBAu_I",
+      "etichetta": "L19",
+      "titolo": "Chiamate di sistema: open, read, close",
+      "durata": "22:42"
+    },
+    {
+      "video": "yKavhObop5I",
+      "etichetta": "L20",
+      "titolo": "Buffering della libc, write e mmap",
+      "durata": "36:06"
+    },
+    {
+      "video": "TM4jgODgdFY",
+      "etichetta": "L21",
+      "titolo": "Union e bitfield per risparmiare memoria",
+      "durata": "28:38"
+    },
+    {
+      "video": "OIseV5lcx8w",
+      "etichetta": "L22",
+      "titolo": "Puntatori a funzione e qsort",
+      "durata": "25:17"
+    },
+    {
+      "video": "vYODKK8TQGE",
+      "etichetta": "L23",
+      "titolo": "Inizia Toy Forth, interprete stack-based",
+      "durata": "39:06"
+    },
+    {
+      "video": "-QxrmHo-V7Y",
+      "etichetta": "L24",
+      "titolo": "Toy Forth: lettura del programma e primo parser",
+      "durata": "55:06"
+    },
+    {
+      "video": "-1ZhCgaIPOk",
+      "etichetta": "L25",
+      "titolo": "Toy Forth: print_object ricorsiva e parsing dei simboli",
+      "durata": "20:42"
+    },
+    {
+      "video": "oMj3N6jYIUU",
+      "etichetta": "L26",
+      "titolo": "Toy Forth: exec, contesto e reference counting",
+      "durata": "38:39"
+    },
+    {
+      "video": "C4AHEK3fSjg",
+      "etichetta": "L27",
+      "titolo": "Toy Forth: call_symbol e tabella delle funzioni",
+      "durata": "44:55"
+    },
+    {
+      "video": "QdZc1JV_oCw",
+      "etichetta": "Speciale",
+      "titolo": "Reference counting: perché serve, come funziona",
+      "durata": "11:33"
+    },
+    {
+      "video": "cvWbCx0lLjs",
+      "etichetta": "L28",
+      "titolo": "Funzioni variadiche: va_list, va_arg e wrapper di printf",
+      "durata": "31:03"
+    },
+    {
+      "video": "nHzlRqPnlrE",
+      "etichetta": "L29",
+      "titolo": "Toy Forth: Makefile, git e stack dell'interprete",
+      "durata": "47:41"
+    },
+    {
+      "video": "D1U3uCe-kok",
+      "etichetta": "L30",
+      "titolo": "ZX Spectrum: immagini con simulated annealing",
+      "durata": "47:52"
+    },
+    {
+      "video": "fZmdsh0gQig",
+      "etichetta": "L31",
+      "titolo": "ZX file: ottimizzazione con Claude Code",
+      "durata": "44:15"
+    },
+    {
+      "video": "xaEr-XSlWfo",
+      "etichetta": "App. L31",
+      "titolo": "ZX file: color bonus e saturazione",
+      "durata": "8:36"
+    },
+    {
+      "video": "4EofabMH41M",
+      "etichetta": "L32",
+      "titolo": "SDL, prospettiva e rotazione 3D in C",
+      "durata": "1:23:19"
+    },
+    {
+      "video": "Ah8n1UEM3bY",
+      "etichetta": "L33",
+      "titolo": "setjmp/longjmp: salti non locali e coroutine",
+      "durata": "41:58"
+    },
+    {
+      "video": "b_ecSNYtWQY",
+      "etichetta": "L34",
+      "titolo": "Socket UDP, htons e API di rete",
+      "durata": "54:34"
+    }
+  ]
+}

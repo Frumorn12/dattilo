@@ -61,10 +61,10 @@ T['progressi: registra e ricarica'] = function()
   local vecchio = vim.env.XDG_DATA_HOME
   vim.env.XDG_DATA_HOME = vim.fn.tempname()
   local progressi = require('dattilo.progressi')
-  progressi.registra('01-hello', { wpm = 41, precisione = 96.5, tempo_ms = 42000, tasti_modifica = 18 })
-  progressi.registra('01-hello', { wpm = 35, precisione = 99, tempo_ms = 50000, tasti_modifica = 20 })
+  progressi.registra('corso-c-antirez/01-hello', { wpm = 41, precisione = 96.5, tempo_ms = 42000, tasti_modifica = 18 })
+  progressi.registra('corso-c-antirez/01-hello', { wpm = 35, precisione = 99, tempo_ms = 50000, tasti_modifica = 20 })
   local p = progressi.carica()
-  uguale({ p.lezioni['01-hello'].volte, p.lezioni['01-hello'].migliore_wpm, #p.sessioni }, { 2, 41, 2 })
+  uguale({ p.lezioni['corso-c-antirez/01-hello'].volte, p.lezioni['corso-c-antirez/01-hello'].migliore_wpm, #p.sessioni }, { 2, 41, 2 })
   vero(vim.fn.filereadable(vim.env.XDG_DATA_HOME .. '/dattilo/progressi.json') == 1)
   vero(vim.fn.isdirectory(progressi.lavoro('01-hello')) == 1)
   vim.env.XDG_DATA_HOME = vecchio

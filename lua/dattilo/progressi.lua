@@ -17,6 +17,20 @@ function M.carica()
   dati.lezioni = type(dati.lezioni) == 'table' and dati.lezioni or {}
   dati.sessioni = type(dati.sessioni) == 'table' and dati.sessioni or {}
   if vim.tbl_isempty(dati.lezioni) then dati.lezioni = {} end
+  -- una volta sola: le lezioni del corso C avevano chiavi senza pacchetto
+  local VECCHIE = { ['01-hello'] = true, ['02-sum'] = true }
+  local migrato = false
+  for k in pairs(VECCHIE) do
+    if dati.lezioni[k] then
+      dati.lezioni['corso-c-antirez/' .. k] = dati.lezioni['corso-c-antirez/' .. k] or dati.lezioni[k]
+      dati.lezioni[k] = nil
+      migrato = true
+    end
+  end
+  for _, s in ipairs(dati.sessioni) do
+    if VECCHIE[s.id] then s.id = 'corso-c-antirez/' .. s.id migrato = true end
+  end
+  if migrato then M.salva(dati) end
   return dati
 end
 
