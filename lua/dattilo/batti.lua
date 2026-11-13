@@ -57,11 +57,11 @@ local function su_righe(st, buf, first, last_old, last_new)
   if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' and not st.finito then
     if last_old - first == 1 and last_new - first == 1 then
       local da, testo = confronto.inseriti(st.prima[first + 1] or '', nuove[1])
-      if da and st.salta then
-        -- gli spazi messi dalla mappa di Invio possono arrivare da soli o insieme al tasto dopo
-        local k = 0
-        while k < #testo and k < #st.salta and testo:byte(k + 1) == st.salta:byte(k + 1) do k = k + 1 end
-        st.salta = #st.salta > k and k > 0 and st.salta:sub(k + 1) or nil
+      if da and st.salta and first + 1 == st.salta.riga then
+        -- gli spazi messi dalla mappa di Invio arrivano da soli o insieme ai tasti dopo: non sono battuti
+        local k, sp = 0, st.salta.testo
+        while k < #testo and k < #sp and testo:byte(k + 1) == sp:byte(k + 1) do k = k + 1 end
+        st.salta = (k > 0 and k < #sp) and { riga = st.salta.riga, testo = sp:sub(k + 1) } or nil
         da, testo = da + k, testo:sub(k + 1)
       end
       if da and #testo > 0 then
@@ -98,7 +98,7 @@ function M.avvia(buf, bersaglio, cb)
   vim.keymap.set('i', '<CR>', function()
     local r = vim.api.nvim_win_get_cursor(0)[1]
     local rientro = (st.bersaglio[r + 1] or ''):match('^%s*')
-    st.salta = rientro ~= '' and rientro or nil
+    st.salta = rientro ~= '' and { riga = r + 1, testo = rientro } or nil
     return '\r' .. rientro
   end, { buffer = buf, expr = true, replace_keycodes = false, desc = 'dattilo: a capo con il rientro del bersaglio' })
   M.aggiorna(buf)
