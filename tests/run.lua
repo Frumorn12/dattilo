@@ -3,6 +3,7 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 vim.opt.runtimepath:prepend(root)
 package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.path
 _G.RADICE = root
+vim.o.showmode = false
 
 function _G.uguale(a, b, msg)
   if not vim.deep_equal(a, b) then
