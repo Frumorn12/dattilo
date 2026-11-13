@@ -211,4 +211,37 @@ function M.pacchetti()
   mappa(buf, 'q', function() M.apri() end)
 end
 
+-- Importa un file .dattilo dall'app: percorso, anteprima, conferma.
+function M.importa()
+  vim.ui.input({ prompt = 'File .dattilo da importare: ', completion = 'file', default = vim.fn.expand('~/') }, function(percorso)
+    if not percorso or percorso == '' then return end
+    percorso = vim.fn.expand(percorso)
+    if vim.fn.filereadable(percorso) == 0 then
+      vim.api.nvim_echo({ { 'File non trovato: ' .. percorso, 'DattiloRosso' } }, true, {})
+      return
+    end
+    local scambio = require('dattilo.scambio')
+    local dati, err = scambio.leggi(table.concat(vim.fn.readfile(percorso, 'b'), '\n'))
+    if not dati then
+      local chunks = { { 'Non importo il file:\n', 'DattiloRosso' } }
+      for _, e in ipairs(err) do chunks[#chunks + 1] = { '  ' .. e.file .. ':' .. e.riga .. ': ' .. e.msg .. '\n', 'DattiloTesto' } end
+      vim.api.nvim_echo(chunks, true, {})
+      return
+    end
+    local scelta = vim.fn.confirm(table.concat(scambio.anteprima(dati), '\n') .. '\n\nInstallare?', '&Sì\n&No', 2)
+    if scelta ~= 1 then return end
+    local ok, msg = scambio.installa(dati, { sostituisci = true })
+    M.pacchetti()
+    vim.api.nvim_echo({ { msg, ok and 'DattiloVerde' or 'DattiloRosso' } }, true, {})
+  end)
+end
+
+-- Esporta il pacchetto nella home: ~/<id>-<versione>.dattilo
+function M.esporta(v)
+  local testo, nome = require('dattilo.scambio').esporta(v.cartella)
+  local dest = vim.fn.expand('~/') .. nome
+  vim.fn.writefile(vim.split(testo:gsub('\n$', ''), '\n', { plain = true }), dest)
+  vim.api.nvim_echo({ { 'Esportato in ' .. dest .. ': mandalo a chi vuoi, si importa con dattilo importa.', 'DattiloVerde' } }, true, {})
+end
+
 return M

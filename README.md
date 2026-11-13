@@ -22,10 +22,35 @@ C'è anche il **Dojo Vim**: esercizi brevi di trasformazione con il par.
 Sotto c'è Neovim vero (`nvim --clean`), quindi ogni tasto fa esattamente quello che
 fa nel tuo editor.
 
+## Pacchetti
+
+Le lezioni arrivano a **pacchetti**: una cartella con `pacchetto.json` e una lezione per
+file Markdown in `lezioni/`. Il corso C è il primo pacchetto, incluso in dattilo. I
+pacchetti contengono solo dati (JSON e Markdown), mai codice: importarne uno ricevuto da
+altri non può eseguire niente.
+
+Si scambiano come **un solo file `.dattilo`**, di testo:
+
+```sh
+dattilo esporta javascript            # scrive javascript-0.1.0.dattilo
+dattilo importa javascript-0.1.0.dattilo
+dattilo pacchetti                     # elenco degli installati
+dattilo nuovo mio-pacchetto           # scheletro da cui partire
+dattilo controlla mio-pacchetto       # il codice gira? le soluzioni stanno nel par?
+```
+
+Nell'app: home → **Pacchetti** (`p`), poi `i` importa ed `e` esporta.
+
+Il formato completo di una lezione è descritto in
+`docs/superpowers/specs/2026-11-13-pacchetti-design.md`. Ogni pacchetto dice come si
+esegue il suo codice: `compila` (es. `cc`), `comando` (es. `node main.js`) o
+`controllo` (solo la sintassi, es. `node --check`).
+
 ## Requisiti
 
 - Neovim 0.12 o più recente
 - un compilatore C come `cc` (GCC 14 o più recente per il passo "rompi" della lezione 1)
+- `node` per i pacchetti JavaScript
 - facoltativo: tokyonight installato da lazy.nvim, per gli stessi colori di LazyVim
 
 ## Installazione
@@ -40,7 +65,7 @@ dattilo
 
 | Dove | Tasti |
 |---|---|
-| Home e menu | `j` `k` per muoverti, `Invio` per aprire, `c` corso, `d` Dojo, `q` esci |
+| Home e menu | `j` `k` per muoverti, `Invio` per aprire, `c` corso C, `p` pacchetti, `d` Dojo, `q` esci |
 | Batti | `i` per scrivere; per spostarti `Esc`, poi `h` `j` `k` `l`, poi `i` di nuovo; `:w` salva e compila |
 | Ovunque | `:q` torna alla home (dalla home chiude l'app), `:e!` ricomincia l'esercizio |
 
