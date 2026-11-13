@@ -85,7 +85,7 @@ local function comando_esporta(args)
   end
   local testo, nome = require('dattilo.scambio').esporta(vim.fn.fnamemodify(cartella, ':p'):gsub('/$', ''))
   uscita = uscita or nome
-  if vim.fn.isdirectory(uscita) == 1 then uscita = uscita .. '/' .. nome end
+  if vim.fn.isdirectory(uscita) == 1 then uscita = uscita:gsub('/+$', '') .. '/' .. nome end
   vim.fn.writefile(vim.split(testo:gsub('\n$', ''), '\n', { plain = true }), uscita)
   scrivi('Esportato in ' .. uscita)
   return 0
