@@ -17,6 +17,8 @@ batti_codice() { tasto i; local n=$#; local i=0
   tasto Escape; }
 PROMPT='ENTER\|INVIO'
 
+mkdir -p "$XDG_DATA_HOME/dattilo/pacchetti"
+cp -r "$RADICE/tests/fixture/js-prova" "$XDG_DATA_HOME/dattilo/pacchetti/"
 tmux new-session -d -s "$S" -x 110 -y 40 "$RADICE/bin/dattilo"
 aspetta 'Prossima lezione'
 
@@ -53,8 +55,25 @@ tasto Enter; scrivi 'u:w'; tasto Enter; aspetta 'Hello World 12'
 tasto Enter; aspetta 'Cosa hai scritto'
 tasto Enter; aspetta 'riepilogo'
 
-# :q torna alla home, poi Dojo
+# :q torna alla home, poi un pacchetto JavaScript
 scrivi 'q'; aspetta '2 lezioni fatte'
+scrivi 'p'; aspetta 'JS di prova'
+scrivi 'j'; tasto Enter; aspetta 'Una somma in JavaScript'
+tasto Enter; aspetta 'Tu adesso'
+tasto Enter; aspetta 'Premi  i  per entrare'
+batti_codice 'const somma = (a, b) => a + b;' 'console.log(somma(2, 3));'
+aspetta 'SALVA'
+scrivi ':w'; tasto Enter; aspetta 'Eseguito senza errori'
+tasto Enter; aspetta 'MODIFICA 1/1'
+scrivi 'jf2r4f3r5'; aspetta 'Par 9'
+tasto Enter; aspetta 'ESEGUI'
+scrivi ':w'; tasto Enter; aspetta "$PROMPT"
+cap | grep -q '^9$' || fallisci 'manca la stampa di 9'
+tasto Enter; aspetta 'Cosa hai scritto'
+tasto Enter; aspetta 'riepilogo'
+scrivi 'q'; aspetta '3 lezioni fatte'
+
+# Dojo
 scrivi 'd'; aspetta 'MUOVITI SENZA FRECCE'
 scrivi 'jf+'; aspetta 'Par 3'
 tasto Enter; aspetta 'CAMBIA UNA PAROLA'
@@ -62,4 +81,4 @@ scrivi ':q'; tasto Enter; aspetta 'Prossima lezione'
 scrivi ':q'; tasto Enter
 for _ in $(seq 1 30); do tmux has-session -t "$S" 2>/dev/null || break; sleep 0.1; done
 tmux has-session -t "$S" 2>/dev/null && fallisci ':q dalla home non chiude dattilo'
-echo 'E2E OK: lezione 1, lezione 2, Dojo, :q'
+echo 'E2E OK: lezione 1, lezione 2, pacchetto JS, Dojo, :q'

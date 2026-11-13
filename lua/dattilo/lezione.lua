@@ -3,14 +3,15 @@ local batti = require('dattilo.batti')
 local compila = require('dattilo.compila')
 local confronto = require('dattilo.confronto')
 local esercizio = require('dattilo.esercizio')
+local pacchetti = require('dattilo.pacchetti')
 local progressi = require('dattilo.progressi')
 local schermo = require('dattilo.schermo')
 local stato = require('dattilo.stato')
 local ui = require('dattilo.ui')
 
 local M = {}
-local PASSI = { briefing = 1, batti = 2, modifica = 3, rompi = 4, spiegazione = 5, fine = 6 }
-local NOMI = { briefing = 'briefing', batti = 'batti', modifica = 'modifica', rompi = 'rompi', spiegazione = 'spiegazione', fine = 'riepilogo' }
+local PASSI = { briefing = 1, batti = 2, modifica = 3, rompi = 4, esegui = 4, spiegazione = 5, fine = 6 }
+local NOMI = { briefing = 'briefing', batti = 'batti', modifica = 'modifica', rompi = 'rompi', esegui = 'esegui', spiegazione = 'spiegazione', fine = 'riepilogo' }
 local ns = vim.api.nvim_create_namespace('dattilo_lezione')
 
 local function ora() return vim.uv.hrtime() / 1e6 end
@@ -22,7 +23,7 @@ local function eco(chunks) vim.api.nvim_echo(chunks, true, {}) end
 
 local function barre(s)
   local p = PASSI[s.passo]
-  stato.titolo = 'Lezione ' .. s.L.numero .. ' · ' .. s.L.breve
+  stato.titolo = s.L.etichetta .. ' · ' .. s.L.breve
   stato.destra = string.rep('●', p) .. string.rep('○', 6 - p) .. '  ' .. NOMI[s.passo]
   vim.cmd('redrawtabline')
 end
@@ -33,7 +34,16 @@ local function mappa(buf, tasti, fn)
   end
 end
 
+-- Testo finale della lezione: obiettivo dell'ultima modifica, o il codice di Batti.
+local function finale(L)
+  if L.rompi then return L.rompi.ripara end
+  return #L.modifiche > 0 and L.modifiche[#L.modifiche].obiettivo or L.batti.codice
+end
+
+local function strumento(L) return L.esecuzione.tipo == 'compila' and 'gcc' or (L.esecuzione.comando and L.esecuzione.comando[1]) or 'node' end
+
 local function apri_video(s, minuto)
+  if not s.L.video then eco({ { 'Questa lezione non ha un video.', 'DattiloGiallo' } }) return end
   local url = 'https://www.youtube.com/watch?v=' .. s.L.video.id .. '&t=' .. secondi(minuto or s.L.video.da) .. 's'
   local ok = pcall(vim.ui.open, url)
   if not ok then eco({ { url, 'DattiloCiano' } }) end
@@ -62,7 +72,8 @@ local function briefing(s)
   local r = {
     {},
     { { '   ' .. L.titolo, 'DattiloForte' } },
-    { { '   antirez · ' .. L.video.durata .. ' · youtu.be/' .. L.video.id, 'DattiloMuto' } },
+    L.video and { { '   antirez · ' .. (L.video.durata or '') .. ' · youtu.be/' .. L.video.id, 'DattiloMuto' } }
+      or { { '   ' .. (L.fonte and ('da ' .. L.fonte) or (pacchetti.carica(L.pacchetto) or { m = { titolo = '' } }).m.titolo), 'DattiloMuto' } },
     {},
   }
   for _, l in ipairs(ui.a_capo(L.briefing, math.min(76, vim.o.columns - 6))) do r[#r + 1] = { { '   ' .. l, 'DattiloTesto' } } end
@@ -75,9 +86,11 @@ local function briefing(s)
   local mosse = table.concat(vim.tbl_map(function(k) return '‹' .. k .. '›' end, L.mosse), ' ')
   r[#r + 1] = schermo.con_tasti('   Mosse nuove   ', mosse)
   r[#r + 1] = { { '   Concetti      ', 'DattiloTesto' }, { table.concat(L.concetti, ' · '), 'DattiloForte' } }
-  r[#r + 1] = { { '   Tempo         ', 'DattiloTesto' }, { L.tempo, 'DattiloForte' } }
+  if #L.mosse == 0 then table.remove(r) end
+  if #L.concetti == 0 then table.remove(r) end
+  if L.tempo then r[#r + 1] = { { '   Tempo         ', 'DattiloTesto' }, { L.tempo, 'DattiloForte' } } end
   r[#r + 1] = {}
-  r[#r + 1] = schermo.con_tasti('   ', '‹Invio› inizia   ‹v› apre il video al minuto ' .. L.video.da .. '   ‹q› torna alla home', 'DattiloMuto')
+  r[#r + 1] = schermo.con_tasti('   ', '‹Invio› inizia   ' .. (L.video and ('‹v› apre il video al minuto ' .. L.video.da .. '   ') or '') .. '‹q› torna alla home', 'DattiloMuto')
   local buf = schermo.buffer('briefing')
   schermo.scrivi(buf, r)
   schermo.mostra(buf, 'testo')
@@ -136,9 +149,12 @@ local function tip(s)
     local modo = vim.api.nvim_get_mode().mode:sub(1, 1)
     local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
     if modo == 'i' then ui.tip('TIP', '‹Esc› per tornare in NORMAL.')
-    elseif s.rotto and not s.L.rompi.rotto(righe) then ui.tip('RIPARATO', 'Ora ‹:w› per ricompilare.', 'verde')
+    elseif s.rotto and confronto.confronta(righe, s.L.rompi.ripara).finito then ui.tip('RIPARATO', 'Ora ‹:w› per ricontrollare.', 'verde')
     elseif s.rotto then ui.tip('CAPITO?', s.L.rompi.dopo)
     else ui.tip(s.L.rompi.titolo:upper(), s.L.rompi.consegna) end
+  elseif s.passo == 'esegui' then
+    if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' then ui.tip('TIP', '‹Esc› per tornare in NORMAL.')
+    else ui.tip('ESEGUI', 'Ora ‹:w›: dattilo salva ed esegue il codice. Se gira pulito, si passa alla spiegazione.') end
   end
 end
 
@@ -146,27 +162,28 @@ local function salvato(s)
   local L = s.L
   local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
   local dir = vim.fn.fnamemodify(s.percorso, ':h')
+  local function lancia() return compila.lancia(dir, L.file, L.esecuzione) end
   if s.passo == 'batti' then
     if not confronto.confronta(righe, L.batti.codice).finito then
       local mancano = #table.concat(L.batti.codice, '\n') - #table.concat(righe, '\n')
-      eco({ { mancano > 0 and ('"' .. L.file .. '" salvato. Mancano ancora ' .. mancano .. ' caratteri prima di compilare.')
+      eco({ { mancano > 0 and ('"' .. L.file .. '" salvato. Mancano ancora ' .. mancano .. ' caratteri prima di eseguire.')
         or ('"' .. L.file .. '" salvato, ma qualcosa non torna: cerca il rosso.'), 'DattiloGiallo' } })
       return
     end
-    local r = compila.esegui(dir, L.file)
+    local r = lancia()
     eco(compila.messaggio(r))
-    if r.ok and r.uscita == L.esegui.atteso then
+    if r.ok and (not L.esegui.atteso or r.uscita == L.esegui.atteso) then
       local m = s.st.metriche
       s.risultato = { wpm = m:wpm(ora()), precisione = m:precisione(), tempo_ms = m:tempo(ora()) }
-      vim.schedule(function() M.modifica(s, 1) end)
+      vim.schedule(function() M.dopo_modifica(s, 0) end)
     end
   elseif s.passo == 'modifica' then
     eco({ { 'Prima finisci la modifica: ' .. L.modifiche[s.mi].consegna, 'DattiloGiallo' } })
   elseif s.passo == 'rompi' then
-    local r = compila.esegui(dir, L.file)
+    local r = lancia()
     local chunks = compila.messaggio(r)
-    if L.rompi.rotto(righe) then
-      if (L.rompi.attesa == 'errore' and not r.compilato) or (L.rompi.attesa == 'warning' and r.warning) then s.rotto = true end
+    if compila.fallito(r, L.rompi.attesa, L.rompi.cerca) then
+      s.rotto = true
       eco(chunks)
     elseif confronto.confronta(righe, L.rompi.ripara).finito then
       if not s.rotto then
@@ -181,21 +198,38 @@ local function salvato(s)
       eco(chunks)
     end
     tip(s)
+  elseif s.passo == 'esegui' then
+    local r = lancia()
+    eco(compila.messaggio(r))
+    if r.ok then vim.schedule(function() M.spiegazione(s) end) end
   end
+end
+
+-- Dopo la modifica i (0 = dopo Batti): la prossima modifica, Rompi o il passo esegui.
+function M.dopo_modifica(s, i)
+  if M.s ~= s then return end
+  local L = s.L
+  if i < #L.modifiche then M.modifica(s, i + 1)
+  elseif L.rompi then M.rompi(s)
+  else M.esegui(s) end
 end
 
 function M.batti(s)
   s.passo = 'batti'
   barre(s)
   local L = s.L
-  s.percorso = progressi.lavoro(L.id) .. '/' .. L.file
+  local dir = progressi.lavoro(L.pacchetto .. '/' .. L.id)
+  if L.cartella_file then
+    for _, f in ipairs(vim.fn.readdir(L.cartella_file)) do vim.uv.fs_copyfile(L.cartella_file .. '/' .. f, dir .. '/' .. f) end
+  end
+  s.percorso = dir .. '/' .. L.file
   vim.fn.writefile({}, s.percorso)
   vim.api.nvim_set_current_win(schermo.finestra())
   vim.cmd('silent! keepalt edit! ' .. vim.fn.fnameescape(s.percorso))
   s.buf = vim.api.nvim_get_current_buf()
   vim.bo[s.buf].swapfile = false
   schermo.mostra(s.buf, 'editor')
-  pcall(vim.treesitter.start, s.buf, 'c')
+  pcall(vim.treesitter.start, s.buf, L.linguaggio or 'c')
   s.frecce = false
   s.st = batti.avvia(s.buf, L.batti.codice, {
     su_cambio = function() tip(s) end,
@@ -253,7 +287,7 @@ function M.modifica(s, i)
         if M.s ~= s then return end
         esercizio.chiudi(s.e)
         s.e = nil
-        if i < #L.modifiche then M.modifica(s, i + 1) else M.rompi(s) end
+        M.dopo_modifica(s, i)
       end)
     end,
   }))
@@ -269,6 +303,13 @@ function M.rompi(s)
   tip(s)
 end
 
+function M.esegui(s)
+  s.passo = 'esegui'
+  barre(s)
+  vim.api.nvim_set_current_win(schermo.finestra())
+  tip(s)
+end
+
 function M.tip() if M.s then tip(M.s) end end
 
 function M.ricomincia()
@@ -280,6 +321,8 @@ function M.ricomincia()
     vim.api.nvim_buf_set_lines(s.buf, 0, -1, false, s.L.rompi.ripara)
     s.rotto = false
     tip(s)
+  elseif s.passo == 'esegui' then
+    vim.api.nvim_buf_set_lines(s.buf, 0, -1, false, finale(s.L))
   end
 end
 
@@ -291,36 +334,46 @@ function M.spiegazione(s)
   batti.stacca(s.buf)
   ui.chiudi_tip()
   local L, sp = s.L, s.L.spiegazione
+  local codice = finale(L)
   stato.file, stato.metriche = L.file, function() return { 'sola lettura' } end
   local buf = schermo.buffer('spiegazione')
   vim.bo[buf].modifiable = true
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, L.rompi.ripara)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, codice)
   vim.bo[buf].modifiable, vim.bo[buf].modified = false, false
-  pcall(vim.treesitter.start, buf, 'c')
+  pcall(vim.treesitter.start, buf, L.linguaggio or 'c')
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   local largo = 0
-  for _, l in ipairs(L.rompi.ripara) do largo = math.max(largo, vim.fn.strdisplaywidth(l)) end
+  for _, l in ipairs(codice) do largo = math.max(largo, vim.fn.strdisplaywidth(l)) end
   local col = largo + 4
   for riga, note in pairs(sp.note) do
-    local altre = {}
-    for k = 2, #note do altre[#altre + 1] = { { string.rep(' ', col) .. note[k], 'DattiloTesto' } } end
-    vim.api.nvim_buf_set_extmark(buf, ns, riga - 1, 0, { virt_text = { { note[1], 'DattiloTesto' } }, virt_text_win_col = col, virt_lines = #altre > 0 and altre or nil })
+    if riga >= 1 and riga <= #codice then
+      local altre = {}
+      for k = 2, #note do altre[#altre + 1] = { { string.rep(' ', col) .. note[k], 'DattiloTesto' } } end
+      vim.api.nvim_buf_set_extmark(buf, ns, riga - 1, 0, { virt_text = { { note[1], 'DattiloTesto' } }, virt_text_win_col = col, virt_lines = #altre > 0 and altre or nil })
+    end
   end
-  vim.api.nvim_buf_set_extmark(buf, ns, 0, 0, { virt_lines_above = true, virt_lines = { { { 'Cosa hai scritto', 'DattiloAccento' } }, { { '' } } } })
-  local sotto = { { { '' } }, { { 'Da antirez', 'DattiloAccento' } } }
-  for _, m in ipairs(sp.momenti) do sotto[#sotto + 1] = { { '┃ ', 'DattiloMuto' }, { m[1] .. '  ', 'DattiloCiano' }, { m[2], 'DattiloTesto' } } end
+  local testa = { { { 'Cosa hai scritto', 'DattiloAccento' } } }
+  if L.fonte then testa[#testa + 1] = { { 'da ' .. L.fonte, 'DattiloMuto' } } end
+  testa[#testa + 1] = { { '' } }
+  vim.api.nvim_buf_set_extmark(buf, ns, 0, 0, { virt_lines_above = true, virt_lines = testa })
+  local sotto = {}
+  if #sp.momenti > 0 then
+    sotto[#sotto + 1] = { { '' } }
+    sotto[#sotto + 1] = { { L.video and 'Dal video' or 'Momenti', 'DattiloAccento' } }
+    for _, m in ipairs(sp.momenti) do sotto[#sotto + 1] = { { '┃ ', 'DattiloMuto' }, { m[1] .. '  ', 'DattiloCiano' }, { m[2], 'DattiloTesto' } } end
+  end
+  if sp.trappola or sp.prova then sotto[#sotto + 1] = { { '' } } end
+  if sp.trappola then sotto[#sotto + 1] = { { 'Trappola  ', 'DattiloRosso' }, { sp.trappola, 'DattiloTesto' } } end
+  if sp.prova then sotto[#sotto + 1] = { { 'Prova     ', 'DattiloVerde' }, { sp.prova, 'DattiloTesto' } } end
   sotto[#sotto + 1] = { { '' } }
-  sotto[#sotto + 1] = { { 'Trappola  ', 'DattiloRosso' }, { sp.trappola, 'DattiloTesto' } }
-  sotto[#sotto + 1] = { { 'Prova     ', 'DattiloVerde' }, { sp.prova, 'DattiloTesto' } }
-  sotto[#sotto + 1] = { { '' } }
-  sotto[#sotto + 1] = ui.segmenti('‹Invio› continua   ‹v› apre il video al primo momento   ‹q› torna alla home', 'DattiloMuto')
-  vim.api.nvim_buf_set_extmark(buf, ns, #L.rompi.ripara - 1, 0, { virt_lines = sotto })
+  sotto[#sotto + 1] = ui.segmenti('‹Invio› continua   ' .. ((L.video and #sp.momenti > 0) and '‹v› apre il video al primo momento   ' or '') .. '‹q› torna alla home', 'DattiloMuto')
+  vim.api.nvim_buf_set_extmark(buf, ns, #codice - 1, 0, { virt_lines = sotto })
   schermo.mostra(buf, 'testo')
   vim.wo.number = true
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
-  vim.fn.winrestview({ topfill = 2 })
+  vim.fn.winrestview({ topfill = #testa })
   mappa(buf, { '<CR>', 'l' }, function() if M.s == s then M.fine(s) end end)
-  mappa(buf, 'v', function() apri_video(s, sp.momenti[1][1]) end)
+  mappa(buf, 'v', function() apri_video(s, sp.momenti[1] and sp.momenti[1][1]) end)
   mappa(buf, 'q', function() require('dattilo.home').apri() end)
 end
 
@@ -330,45 +383,53 @@ function M.fine(s)
   barre(s)
   local L, ris = s.L, s.risultato or { wpm = 0, precisione = 100, tempo_ms = 0 }
   ris.tasti_modifica = s.tasti_modifica
-  progressi.registra(L.id, ris)
+  progressi.registra(L.pacchetto .. '/' .. L.id, ris)
   stato.file, stato.metriche = 'lezione ' .. L.numero, function() return { 'completata' } end
   local tasti, par = s.tasti_modifica or 0, s.par_modifica or 0
-  local indice = require('dattilo.lezioni.indice')
-  local pros = L.prossima and indice[L.prossima]
+  local P = pacchetti.carica(L.pacchetto)
+  local pros = L.prossima and P and P.lezioni[L.prossima]
+  local futura = not pros and P and P.in_arrivo[1]
   local mosse = table.concat(vim.tbl_map(function(k) return '‹' .. k .. '›' end, L.mosse), ' ')
   local r = {
     {},
     { { '   Batti      ', 'DattiloTesto' }, { #L.batti.codice .. ' righe in ' .. tempo(ris.tempo_ms), 'DattiloForte' },
       { '   ' .. ris.wpm .. ' parole al minuto · ' .. perc(ris.precisione) .. ' di precisione', 'DattiloVerde' } },
-    { { '   Modifica   ', 'DattiloTesto' }, { tasti .. ' tasti, par ' .. par .. ' ', 'DattiloForte' }, { stelle(esercizio.stelle(tasti, par)), 'DattiloStella' } },
-    { { '   Rompi      ', 'DattiloTesto' }, { L.rompi.attesa == 'errore' and 'hai letto un errore vero di gcc' or 'hai letto un warning vero di gcc', 'DattiloForte' } },
-    {},
-    schermo.con_tasti('   Mosse      ', mosse),
-    { { '   Concetti   ', 'DattiloTesto' }, { table.concat(L.concetti, ' · '), 'DattiloForte' } },
-    {},
-    { { '   Ripasso    ', 'DattiloTesto' }, { 'domani, poi tra 3 e 7 giorni (arriva con il passo 5)', 'DattiloForte' } },
   }
-  if pros then
-    r[#r + 1] = { { '   Prossima   ', 'DattiloTesto' }, { pros.etichetta .. ' · ' .. pros.titolo, 'DattiloCiano' } }
+  if #L.modifiche > 0 then
+    r[#r + 1] = { { '   Modifica   ', 'DattiloTesto' }, { tasti .. ' tasti, par ' .. par .. ' ', 'DattiloForte' }, { stelle(esercizio.stelle(tasti, par)), 'DattiloStella' } }
+  end
+  if L.rompi then
+    r[#r + 1] = { { '   Rompi      ', 'DattiloTesto' }, { 'hai letto ' .. (L.rompi.attesa == 'errore' and 'un errore vero' or 'un warning vero') .. ' di ' .. strumento(L), 'DattiloForte' } }
   end
   r[#r + 1] = {}
-  r[#r + 1] = schermo.con_tasti('   ', (pros and pros.file and '‹Invio› prossima lezione   ' or '‹Invio› torna alla home   ') .. '‹r› rifai questa   ‹q› home', 'DattiloMuto')
+  if #L.mosse > 0 then r[#r + 1] = schermo.con_tasti('   Mosse      ', mosse) end
+  if #L.concetti > 0 then r[#r + 1] = { { '   Concetti   ', 'DattiloTesto' }, { table.concat(L.concetti, ' · '), 'DattiloForte' } } end
+  r[#r + 1] = {}
+  r[#r + 1] = { { '   Ripasso    ', 'DattiloTesto' }, { 'domani, poi tra 3 e 7 giorni (arriva con il ripasso)', 'DattiloForte' } }
+  if pros then r[#r + 1] = { { '   Prossima   ', 'DattiloTesto' }, { pros.etichetta .. ' · ' .. pros.titolo, 'DattiloCiano' } }
+  elseif futura then r[#r + 1] = { { '   Prossima   ', 'DattiloTesto' }, { (futura.etichetta or '') .. ' · ' .. (futura.titolo or '') .. ' (in arrivo)', 'DattiloMuto' } } end
+  r[#r + 1] = {}
+  r[#r + 1] = schermo.con_tasti('   ', (pros and '‹Invio› prossima lezione   ' or '‹Invio› torna all\'elenco   ') .. '‹r› rifai questa   ‹q› home', 'DattiloMuto')
   local buf = schermo.buffer('fine')
   schermo.scrivi(buf, r)
   schermo.mostra(buf, 'testo')
   vim.api.nvim_win_set_cursor(0, { 2, 0 })
   mappa(buf, { '<CR>', 'l' }, function()
-    if pros and pros.file then M.apri(L.prossima) else require('dattilo.home').apri() end
+    if pros then M.apri(L.pacchetto, L.prossima) else require('dattilo.home').lezioni(L.pacchetto) end
   end)
-  mappa(buf, 'r', function() M.apri(L.numero) end)
+  mappa(buf, 'r', function() M.apri(L.pacchetto, L.numero) end)
   mappa(buf, 'q', function() require('dattilo.home').apri() end)
 end
 
 ---------------------------------------------------------------- apertura
-function M.apri(n)
+function M.apri(pacchetto, n)
   M.chiudi()
   require('dattilo.dojo').chiudi()
-  local L = require('dattilo.lezioni.' .. string.format('%02d', n))
+  local L = pacchetti.lezione(pacchetto, n)
+  if not L then
+    vim.api.nvim_echo({ { 'Lezione non trovata: ' .. tostring(pacchetto) .. ' ' .. tostring(n), 'DattiloRosso' } }, true, {})
+    return
+  end
   local s = { L = L, passo = 'briefing' }
   M.s = s
   stato.schermo = 'lezione'

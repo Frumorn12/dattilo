@@ -21,7 +21,12 @@ function M.comandi()
     end
   end, { bang = true, desc = 'Ricomincia l\'esercizio' })
   vim.api.nvim_create_user_command('Home', function() require('dattilo.home').apri() end, {})
-  vim.api.nvim_create_user_command('Lezione', function(a) require('dattilo.lezione').apri(tonumber(a.args) or 1) end, { nargs = '?' })
+  vim.api.nvim_create_user_command('Lezione', function(a)
+    local id, n = a.fargs[1] or 'corso-c-antirez', tonumber(a.fargs[2]) or 1
+    if tonumber(id) then id, n = 'corso-c-antirez', tonumber(id) end
+    require('dattilo.lezione').apri(id, n)
+  end, { nargs = '*' })
+  vim.api.nvim_create_user_command('Pacchetti', function() require('dattilo.home').pacchetti() end, {})
   vim.api.nvim_create_user_command('Dojo', function(a) require('dattilo.dojo').apri(tonumber(a.args) or 1) end, { nargs = '?' })
 end
 
@@ -39,6 +44,9 @@ function M.avvia(opts)
     vim.opt.runtimepath:append(tokyonight)
     pcall(vim.cmd.colorscheme, 'tokyonight-night')
   end
+  -- parser treesitter di JavaScript installato da LazyVim, se c'è
+  local site = vim.fn.expand('~/.local/share/nvim/site')
+  if vim.fn.filereadable(site .. '/parser/javascript.so') == 1 then vim.opt.runtimepath:append(site) end
   local ui = require('dattilo.ui')
   ui.colori()
   vim.api.nvim_create_autocmd('ColorScheme', { group = vim.api.nvim_create_augroup('dattilo', { clear = true }), callback = ui.colori })

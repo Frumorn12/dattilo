@@ -1,0 +1,8 @@
+{
+  "id": "js-prova",
+  "titolo": "JS di prova",
+  "versione": "0.1.0",
+  "autore": "test",
+  "linguaggio": "javascript",
+  "esecuzione": { "tipo": "comando", "comando": ["node", "{file}"] }
+}
