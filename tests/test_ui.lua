@@ -9,6 +9,10 @@ end
 T['a capo non spezza un tasto'] = function()
   uguale(ui.a_capo('premi ‹:w› ora', 8), { 'premi', '‹:w› ora' })
 end
+T['a capo: un tasto con spazi resta intero'] = function()
+  uguale(ui.a_capo('premi ‹int x, int y› ora', 40), { 'premi ‹int x, int y› ora' })
+  uguale(ui.a_capo('premi ‹int x, int y› ora', 16), { 'premi', '‹int x, int y›', 'ora' })
+end
 T['a capo forzato con \\n'] = function()
   uguale(ui.a_capo('uno\ndue', 20), { 'uno', 'due' })
 end

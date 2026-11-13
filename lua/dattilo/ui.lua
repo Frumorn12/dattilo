@@ -64,7 +64,10 @@ function M.a_capo(testo, larghezza)
   local out = {}
   for paragrafo in (testo .. '\n'):gmatch('(.-)\n') do
     local riga, lung = '', 0
-    for parola in paragrafo:gmatch('%S+') do
+    -- gli spazi dentro ‹…› non spezzano il tasto
+    local protetto = paragrafo:gsub('‹(.-)›', function(k) return '‹' .. k:gsub(' ', '\1') .. '›' end)
+    for parola in protetto:gmatch('%S+') do
+      parola = parola:gsub('\1', ' ')
       local l = larghezza_resa(parola)
       if lung > 0 and lung + 1 + l > larghezza then
         out[#out + 1] = riga
