@@ -40,6 +40,7 @@ function M.leggi(testo)
   local err = {}
   local function e(file, riga, msg) err[#err + 1] = { file = file, riga = riga, msg = msg } end
   if #testo > MASSIMO then e('', 1, 'il file supera 5 MB') return nil, err end
+  testo = testo:gsub('\r\n', '\n') -- passato da Windows o da una mail
   local righe = vim.split(testo, '\n', { plain = true })
   if righe[#righe] == '' then table.remove(righe) end
   if righe[1] ~= INTESTAZIONE then e('', 1, 'non è un file .dattilo (prima riga: ' .. INTESTAZIONE .. ')') return nil, err end

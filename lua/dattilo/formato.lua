@@ -3,6 +3,76 @@ local M = {}
 
 local TIPI = { compila = true, comando = true, controllo = true }
 
+-- I pacchetti si scambiano: i comandi che possono chiedere sono una lista chiusa.
+local COMPILATORI = { cc = true, gcc = true, clang = true }
+local OPZIONI_CC = { '^%-W[%w%-=]*$', '^%-O[0-3sgz]?$', '^%-g%d?$', '^%-std=[%w+]+$', '^%-fdiagnostics%-color=%a+$',
+  '^%-fsanitize=[%a,]+$', '^%-pedantic$', '^%-l%w+$' }
+
+local function comando_compila_ok(c)
+  if type(c) ~= 'table' or not COMPILATORI[c[1]] then return false, 'compila deve iniziare con cc, gcc o clang' end
+  local i = 2
+  while i <= #c do
+    local a = c[i]
+    if a == '-o' then
+      if c[i + 1] ~= '{nome}' then return false, '-o deve essere seguito da {nome}' end
+      i = i + 1
+    elseif a ~= '{file}' and a ~= '{nome}' then
+      local ok = false
+      for _, p in ipairs(OPZIONI_CC) do if type(a) == 'string' and a:match(p) then ok = true break end end
+      if not ok then return false, 'opzione del compilatore non ammessa: ' .. tostring(a) end
+    end
+    i = i + 1
+  end
+  return true
+end
+
+local function comando_node_ok(c)
+  if type(c) ~= 'table' or c[1] ~= 'node' then return false, 'il comando deve essere node' end
+  local file = false
+  for i = 2, #c do
+    if c[i] == '{file}' then file = true
+    elseif c[i] ~= '--check' then return false, 'argomento di node non ammesso: ' .. tostring(c[i]) end
+  end
+  if not file then return false, 'il comando deve contenere {file}' end
+  return true
+end
+
+-- Controlla un'esecuzione: ritorna nil se va bene, altrimenti il motivo.
+function M.esecuzione_non_ammessa(es)
+  if type(es) ~= 'table' or not TIPI[es.tipo] then return 'esecuzione.tipo deve essere compila, comando o controllo' end
+  if es.tipo == 'compila' then
+    local ok, msg = comando_compila_ok(es.compila)
+    if not ok then return msg end
+    if type(es.esegui) ~= 'table' or #es.esegui ~= 1 or es.esegui[1] ~= './{nome}' then return 'esegui deve essere ["./{nome}"]' end
+    return nil
+  end
+  local ok, msg = comando_node_ok(es.comando)
+  if not ok then return msg end
+  return nil
+end
+
+local ESTENSIONI_CODICE = { c = true, js = true, mjs = true, cjs = true }
+
+-- Le soluzioni le esegue il verificatore: dei comandi ':' sono ammessi solo questi (più i numeri di riga).
+local EX_PERMESSI = { s = true, substitute = true, sor = true, sort = true, noh = true, nohlsearch = true }
+
+function M.soluzione_non_ammessa(sol)
+  if sol:find('<C-r>=', 1, true) or sol:find('<C-R>=', 1, true) or sol:find('\\=', 1, true) or sol:find('!!', 1, true) then
+    return 'la soluzione usa espressioni o filtri della shell'
+  end
+  if sol:find('[\r\n]') then return 'la soluzione contiene un a capo vero: usa <CR>' end
+  -- un ':' è un comando solo se viene eseguito con un Invio
+  local INVIO = { cr = true, enter = true, ['return'] = true, nl = true, ['c-m'] = true, ['c-j'] = true }
+  for seg, tasto in sol:gmatch(':([^<]*)<([^>]+)>') do
+    if INVIO[tasto:lower()] then
+      if seg:find('[!|]') then return 'la soluzione usa un comando con ! o |' end
+      local nome = seg:match("^[%s%d,.%%$'<>]*(%a+)")
+      if nome and not EX_PERMESSI[nome] then return 'comando non ammesso nella soluzione: :' .. nome .. ' (ammessi :s, :sort, :noh e i numeri di riga)' end
+    end
+  end
+  return nil
+end
+
 local function trim(s) return (s:gsub('^%s+', ''):gsub('%s+$', '')) end
 
 -- Toglie le virgolette da un valore; "..." accetta \" e \\.
@@ -37,6 +107,7 @@ end
 
 -- Front matter tra due righe '---'. Ritorna tabella, righe del corpo, numero della prima riga del corpo, errori.
 function M.front_matter(testo, nome)
+  testo = testo:gsub('\r\n', '\n') -- file salvati con fine riga di Windows
   local righe = vim.split(testo, '\n', { plain = true })
   local err = {}
   if righe[1] ~= '---' then return {}, righe, 1, err end
@@ -111,7 +182,11 @@ function M.lezione(testo, nome_file, indice)
   local fm, corpo, prima, err_fm = M.front_matter(testo, nome_file)
   vim.list_extend(err, err_fm)
   if not fm.titolo or fm.titolo == '' then e(1, 'manca titolo nel front matter') end
-  if not fm.file or fm.file == '' then e(1, 'manca file nel front matter') end
+  if not fm.file or fm.file == '' then e(1, 'manca file nel front matter')
+  else
+    local ext = type(fm.file) == 'string' and fm.file:match('^[%w][%w_%-]*%.(%w+)$')
+    if not ext or not ESTENSIONI_CODICE[ext] then e(1, 'file deve essere un nome semplice come main.js o hello.c') end
+  end
   local L = {
     id = nome_file:gsub('%.md$', ''), numero = indice, etichetta = fm.etichetta or string.format('%02d', indice),
     titolo = fm.titolo, breve = fm.breve or fm.titolo, file = fm.file, fonte = fm.fonte, tempo = fm.tempo,
@@ -119,7 +194,14 @@ function M.lezione(testo, nome_file, indice)
     briefing = '', modifiche = {}, esegui = {}, spiegazione = { note = {}, momenti = {} },
   }
   if fm.video then L.video = { id = fm.video, durata = fm.durata, da = fm.video_da or '00:00' } end
-  if fm.esecuzione then L.esecuzione = { tipo = fm.esecuzione, comando = type(fm.comando) == 'table' and fm.comando or nil } end
+  if fm.esecuzione then
+    L.esecuzione = { tipo = fm.esecuzione, comando = type(fm.comando) == 'table' and fm.comando or nil }
+    if fm.esecuzione == 'compila' then e(1, 'una lezione non può cambiare la compilazione del pacchetto')
+    elseif L.esecuzione.comando then
+      local motivo = M.esecuzione_non_ammessa(L.esecuzione)
+      if motivo then e(1, motivo) end
+    elseif not TIPI[fm.esecuzione] then e(1, 'esecuzione deve essere comando o controllo') end
+  end
   local passi
   for _, s in ipairs(sezioni(corpo, prima)) do
     if s.nome == 'Briefing' then
@@ -149,7 +231,11 @@ function M.lezione(testo, nome_file, indice)
       local par = kv.par and tonumber(kv.par.v)
       if not par then e(kv.par and kv.par.riga or s.riga, 'par mancante o non numerico') end
       m.par = par
-      if not m.soluzione or m.soluzione == '' then e(s.riga, 'manca soluzione nella Modifica') end
+      if not m.soluzione or m.soluzione == '' then e(s.riga, 'manca soluzione nella Modifica')
+      else
+        local motivo = M.soluzione_non_ammessa(m.soluzione)
+        if motivo then e(kv.soluzione.riga, motivo) end
+      end
       if not s.blocchi[1] then e(s.riga, 'la Modifica non ha il blocco con il testo obiettivo') end
       m.obiettivo = s.blocchi[1] and s.blocchi[1].righe or {}
       m.mostra = kv.mostra and vim.tbl_map(trim, vim.split(kv.mostra.v, ' · ', { plain = true })) or { m.soluzione }
@@ -211,10 +297,8 @@ function M.manifesto(testo, nome)
   if type(m.id) ~= 'string' or not m.id:match('^[a-z0-9%-]+$') then e('id mancante o non valido (solo minuscole, cifre e trattini)') end
   if type(m.titolo) ~= 'string' or m.titolo == '' then e('manca titolo') end
   if type(m.versione) ~= 'string' or m.versione == '' then e('manca versione') end
-  local es = m.esecuzione
-  if type(es) ~= 'table' or not TIPI[es.tipo] then e('esecuzione.tipo deve essere compila, comando o controllo')
-  elseif es.tipo == 'compila' and (type(es.compila) ~= 'table' or type(es.esegui) ~= 'table') then e('esecuzione compila vuole gli array compila ed esegui')
-  elseif es.tipo ~= 'compila' and type(es.comando) ~= 'table' then e('esecuzione ' .. es.tipo .. ' vuole l\'array comando') end
+  local motivo = M.esecuzione_non_ammessa(m.esecuzione)
+  if motivo then e(motivo) end
   if #err > 0 then return nil, err end
   m.richiede = type(m.richiede) == 'table' and m.richiede or {}
   m.in_arrivo = type(m.in_arrivo) == 'table' and m.in_arrivo or {}

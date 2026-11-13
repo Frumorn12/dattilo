@@ -50,6 +50,11 @@ T['rifiutati: percorsi pericolosi, estensioni, dimensione, intestazione'] = func
   dati = scambio.leggi('ciao\n' .. scambio.esporta(JS))
   uguale(dati, nil)
 end
+T['un .dattilo con fine riga CRLF si importa uguale'] = function()
+  local dati, err = scambio.leggi((scambio.esporta(JS):gsub('\n', '\r\n')))
+  uguale(err, {})
+  uguale(dati.file['lezioni/01-somma.md'], vim.fn.readfile(JS .. '/lezioni/01-somma.md'))
+end
 T['rifiutata una lezione malformata, con file e riga'] = function()
   local testo = con_file('lezioni/02-rotta.md', { '---', 'titolo: Rotta', 'file: main.js', '---', '## Briefing', 'niente' })
   local dati, err = scambio.leggi(testo)

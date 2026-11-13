@@ -3,6 +3,45 @@ local M = {}
 
 M.C = { tipo = 'compila', compila = { 'cc', '-Wall', '-Wextra', '-O2', '-fdiagnostics-color=never', '-o', '{nome}', '{file}' }, esegui = { './{nome}' } }
 
+-- Sandbox: il codice delle lezioni (anche di pacchetti ricevuti da altri) gira con bwrap,
+-- senza rete, con il sistema in sola lettura e la home nascosta: scrive solo nella sua cartella.
+local sandbox_ok
+function M.sandbox()
+  if vim.env.DATTILO_SANDBOX == '0' or vim.env.DATTILO_IN_SANDBOX == '1' then return false end
+  if sandbox_ok == nil then
+    sandbox_ok = vim.fn.executable('bwrap') == 1
+      and vim.system({ 'bwrap', '--ro-bind', '/', '/', '--unshare-all', '--die-with-parent', 'true' }):wait().code == 0
+  end
+  return sandbox_ok
+end
+
+-- Argomenti di bwrap: dir_rw scrivibili, dir_ro e gli eseguibili sotto la home visibili in sola lettura.
+function M.argomenti_sandbox(dir_rw, dir_ro, eseguibili)
+  local home = vim.env.HOME or ''
+  local a = { 'bwrap', '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp' }
+  if home ~= '' and home ~= '/' then vim.list_extend(a, { '--tmpfs', home }) end
+  for _, exe in ipairs(eseguibili or {}) do
+    local percorso = vim.fn.exepath(exe)
+    if percorso ~= '' and home ~= '' and vim.startswith(percorso, home .. '/') then
+      local prefisso = vim.fn.fnamemodify(vim.uv.fs_realpath(percorso) or percorso, ':h:h')
+      vim.list_extend(a, { '--ro-bind', prefisso, prefisso })
+    end
+  end
+  for _, d in ipairs(dir_ro or {}) do vim.list_extend(a, { '--ro-bind', d, d }) end
+  for _, d in ipairs(dir_rw or {}) do vim.list_extend(a, { '--bind', d, d }) end
+  vim.list_extend(a, { '--unshare-all', '--die-with-parent', '--new-session', '--setenv', 'HOME', home ~= '' and home or '/tmp',
+    '--setenv', 'DATTILO_IN_SANDBOX', '1' })
+  return a
+end
+
+local function avvolgi(cmd, dir)
+  if not M.sandbox() then return cmd end
+  local a = M.argomenti_sandbox({ dir }, {}, { cmd[1] })
+  vim.list_extend(a, { '--chdir', dir, '--' })
+  vim.list_extend(a, cmd)
+  return a
+end
+
 local function sostituisci(cmd, file, nome)
   return vim.tbl_map(function(x) return (x:gsub('{file}', file):gsub('{nome}', nome)) end, cmd)
 end
@@ -15,7 +54,7 @@ local function esegui_con_tetto(cmd, dir, r, o)
     r.troncato = true
     if proc then pcall(proc.kill, proc, 9) end
   end
-  proc = vim.system(cmd, {
+  proc = vim.system(avvolgi(cmd, dir), {
     cwd = dir, text = true, timeout = o.timeout_esecuzione or 5000,
     stdout = function(_, dati)
       if not dati or r.troncato then return end
@@ -49,7 +88,7 @@ function M.lancia(dir, file, esecuzione, o)
     return r
   end
   if tipo == 'compila' then
-    local c = vim.system(cmd, { cwd = dir, text = true, timeout = o.timeout_compila or 10000 }):wait()
+    local c = vim.system(avvolgi(cmd, dir), { cwd = dir, text = true, timeout = o.timeout_compila or 10000 }):wait()
     r.diagnostica = (c.stderr or '') .. (c.stdout or '')
     r.compilato = c.code == 0
     r.warning = r.diagnostica:find('warning:', 1, true) ~= nil
@@ -61,7 +100,7 @@ function M.lancia(dir, file, esecuzione, o)
     r.uscita, errori, r.codice = esegui_con_tetto(cmd, dir, r, o)
     r.diagnostica = errori
   else
-    local c = vim.system(cmd, { cwd = dir, text = true, timeout = o.timeout_compila or 10000 }):wait()
+    local c = vim.system(avvolgi(cmd, dir), { cwd = dir, text = true, timeout = o.timeout_compila or 10000 }):wait()
     r.diagnostica = (c.stderr or '') .. (c.stdout or '')
     r.codice = c.code
     r.compilato = c.code == 0

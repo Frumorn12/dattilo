@@ -63,7 +63,7 @@ T['par non numerico: errore sulla sua riga'] = function()
   uguale(e.riga, 10)
 end
 T['un blocco ``` dentro un blocco ```` resta testo'] = function()
-  local L = formato.lezione('---\ntitolo: X\nfile: a.md\n---\n## Batti\n````md\n```js\nx\n```\n````\n', 'x.md', 1)
+  local L = formato.lezione('---\ntitolo: X\nfile: a.js\n---\n## Batti\n````md\n```js\nx\n```\n````\n', 'x.md', 1)
   uguale(L.batti.codice, { '```js', 'x', '```' })
 end
 T['manifesto valido'] = function()

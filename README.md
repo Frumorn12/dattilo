@@ -46,11 +46,27 @@ Il formato completo di una lezione è descritto in
 esegue il suo codice: `compila` (es. `cc`), `comando` (es. `node main.js`) o
 `controllo` (solo la sintassi, es. `node --check`).
 
+### Sicurezza dei pacchetti ricevuti
+
+- **Importare non esegue niente**: il file viene letto, controllato tutto (manifesto, lezioni,
+  percorsi) e solo dopo scritto in `~/.local/share/dattilo/pacchetti/<id>/`. Percorsi con `..`,
+  percorsi assoluti, estensioni diverse da `.json .md .html .js .css .txt .c` e file oltre 5 MB
+  vengono rifiutati senza scrivere nulla.
+- **Comandi chiusi**: un pacchetto può chiedere solo `cc`/`gcc`/`clang` con opzioni innocue,
+  `./programma` per eseguire il risultato, e `node` (anche con `--check`). Niente shell,
+  niente `node -e`, niente plugin del compilatore.
+- **Nomi semplici**: il file di una lezione è un nome come `main.js` o `hello.c`, mai un percorso.
+- **Soluzioni**: dei comandi `:` sono ammessi solo `:s`, `:sort`, `:noh` e i numeri di riga.
+- **Sandbox**: il codice delle lezioni, quando fai `:w`, gira con `bwrap` (se c'è): senza rete,
+  con il sistema in sola lettura e la home nascosta; scrive solo nella sua cartella di lavoro.
+  Senza `bwrap` gira normalmente: in quel caso importa pacchetti solo da persone di cui ti fidi.
+
 ## Requisiti
 
 - Neovim 0.12 o più recente
 - un compilatore C come `cc` (GCC 14 o più recente per il passo "rompi" della lezione 1)
 - `node` per i pacchetti JavaScript
+- consigliato: `bwrap` (bubblewrap) per la sandbox
 - facoltativo: tokyonight installato da lazy.nvim, per gli stessi colori di LazyVim
 
 ## Installazione
