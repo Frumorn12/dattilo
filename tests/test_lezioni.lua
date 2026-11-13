@@ -159,4 +159,41 @@ T['undo non torna all\'esercizio precedente'] = function()
   uguale(vim.api.nvim_buf_get_lines(0, 0, -1, false), dojo.ESERCIZI[4].partenza)
   vim.cmd('DattiloEsci')
 end
+local function in_batti(righe, riga, col)
+  avvia_app()
+  local lezione = require('dattilo.lezione')
+  lezione.apri(1)
+  lezione.batti(lezione.s)
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, righe)
+  vim.api.nvim_win_set_cursor(0, { riga, col })
+  return lezione
+end
+local QUASI = { '#include <stdio.h>', '', 'int main(void) {', '    printf("Hello World', '    ' }
+
+T['frecce in INSERT: spiega Esc, hjkl e i'] = function()
+  local lezione = in_batti({ '#incl' }, 1, 5)
+  lezione.s.frecce = true
+  local titolo, testo = lezione.tip_batti(lezione.s, 'i')
+  uguale(titolo, 'FRECCE')
+  vero(testo:find('INSERT', 1, true) and testo:find('‹Esc›', 1, true) and testo:find('‹i›', 1, true), testo)
+  lezione.chiudi()
+end
+T['frecce in NORMAL: hjkl'] = function()
+  local lezione = in_batti({ '#incl' }, 1, 0)
+  lezione.s.frecce = true
+  local titolo, testo = lezione.tip_batti(lezione.s, 'n')
+  uguale(titolo, 'FRECCE')
+  vero(testo:find('‹h› ‹j› ‹k› ‹l›', 1, true) and not testo:find('INSERT', 1, true), testo)
+  lezione.chiudi()
+end
+T['riga lasciata a metà: dice come tornarci'] = function()
+  local lezione = in_batti(QUASI, 5, 4)
+  local titolo, testo = lezione.tip_batti(lezione.s, 'i')
+  uguale(titolo, 'RIGA 4')
+  vero(testo:find('‹Backspace›', 1, true) and testo:find('‹A›', 1, true), testo)
+  local t2, testo2 = lezione.tip_batti(lezione.s, 'n')
+  uguale(t2, 'RIGA 4')
+  vero(testo2:find('‹k›', 1, true) and testo2:find('‹A›', 1, true), testo2)
+  lezione.chiudi()
+end
 return T

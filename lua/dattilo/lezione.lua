@@ -88,32 +88,49 @@ local function briefing(s)
 end
 
 ---------------------------------------------------------------- batti
-local function tip_batti(s)
-  local st, modo = s.st, vim.api.nvim_get_mode().mode:sub(1, 1)
-  if s.frecce then return 'FRECCE', 'Qui le frecce non valgono: in NORMAL ti muovi con ‹h› ‹j› ‹k› ‹l›. Le dita restano sulla riga centrale.', 'rosso' end
+-- Suggerimento della schermata Batti; `modo` è la prima lettera della modalità di Neovim.
+function M.tip_batti(s, modo)
+  local st = s.st
+  if s.frecce then
+    if modo == 'i' then
+      return 'FRECCE', 'Sei in INSERT: qui ogni tasto scrive, anche h j k l. Per spostarti premi ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i› per tornare a scrivere. Sulla stessa riga basta ‹Backspace›.', 'rosso'
+    end
+    return 'FRECCE', 'Le frecce qui non valgono: ti muovi con ‹h› ‹j› ‹k› ‹l›, senza staccare le dita dalla riga centrale. Poi ‹i› per scrivere.', 'rosso'
+  end
   if modo == 'c' then return 'COMANDO', 'Stai scrivendo un comando. ‹Invio› lo esegue, ‹Esc› annulla.' end
   if st.finito and modo == 'i' then
     return 'FATTO', 'Scritto in ' .. tempo(st.metriche:tempo(ora())) .. ' a ' .. st.metriche:wpm(ora()) .. ' parole al minuto. Ora ‹Esc› per tornare in NORMAL.', 'verde'
   end
   if st.finito then return 'SALVA', 'Salva e compila: scrivi ‹:w› e premi ‹Invio›. dattilo lancia cc con i warning accesi.', 'verde' end
+  local r = vim.api.nvim_win_get_cursor(0)[1]
+  local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
+  local codice = s.L.batti.codice
+  local riga, t = righe[r] or '', codice[r] or ''
+  if modo == 'i' and riga ~= t:sub(1, #riga) then
+    return 'ERRORE', 'Il rosso è un errore. ‹Backspace› e riscrivi: in C basta un carattere sbagliato per non compilare.', 'rosso'
+  end
+  -- una riga sopra il cursore è rimasta a metà (di solito un Invio di troppo presto)
+  for i = 1, r - 1 do
+    if righe[i] ~= codice[i] then
+      if modo == 'i' then
+        return 'RIGA ' .. i, 'La riga ' .. i .. ' non è finita. ‹Backspace› a inizio riga la riunisce a quella sopra; oppure ‹Esc›, sali con ‹k›, poi ‹A› per scrivere a fine riga.'
+      end
+      return 'RIGA ' .. i, 'La riga ' .. i .. ' non è finita: sali con ‹k›, poi ‹A› per scrivere a fine riga. Con ‹j› torni giù.'
+    end
+  end
   if modo ~= 'i' then
     if not st.metriche.inizio then return 'TIP', 'Sei in NORMAL: qui i tasti sono comandi, non lettere. Premi ‹i› per entrare in INSERT e scrivere il codice in grigio.' end
-    return 'TIP', 'Sei in NORMAL. ‹i› torna a scrivere, ‹x› cancella il carattere sotto il cursore, ‹u› annulla.'
-  end
-  local r = vim.api.nvim_win_get_cursor(0)[1]
-  local riga, t = vim.api.nvim_buf_get_lines(s.buf, r - 1, r, false)[1] or '', s.L.batti.codice[r] or ''
-  if riga ~= t:sub(1, #riga) then
-    return 'ERRORE', 'Il rosso è un errore. ‹Backspace› e riscrivi: in C basta un carattere sbagliato per non compilare.', 'rosso'
+    return 'TIP', 'Sei in NORMAL: ‹h› ‹j› ‹k› ‹l› ti spostano, ‹i› torna a scrivere, ‹x› cancella il carattere sotto il cursore, ‹u› annulla.'
   end
   local sugg = s.L.batti.suggerimenti[r]
   if sugg then return 'TIP', sugg end
-  return 'TIP', 'Vai avanti a scrivere. Velocità e precisione sono in basso a destra.'
+  return 'TIP', 'Vai avanti a scrivere. Per spostarti: ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i›.'
 end
 
 local function tip(s)
   if not M.s or M.s ~= s then return end
   if s.passo == 'batti' then
-    if s.st then ui.tip(tip_batti(s)) end
+    if s.st then ui.tip(M.tip_batti(s, vim.api.nvim_get_mode().mode:sub(1, 1))) end
   elseif s.passo == 'modifica' and s.e then ui.tip(esercizio.testo_tip(s.e))
   elseif s.passo == 'rompi' then
     local modo = vim.api.nvim_get_mode().mode:sub(1, 1)
@@ -251,6 +268,8 @@ function M.rompi(s)
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
   tip(s)
 end
+
+function M.tip() if M.s then tip(M.s) end end
 
 function M.ricomincia()
   local s = M.s

@@ -12,6 +12,11 @@ function _G.uguale(a, b, msg)
 end
 function _G.vero(c, msg) if not c then error(msg or 'condizione falsa', 2) end end
 
+local corrente, finito = nil, false
+vim.api.nvim_create_autocmd('VimLeavePre', { callback = function()
+  if not finito then io.stdout:write('USCITA INATTESA di Neovim durante: ' .. tostring(corrente) .. '\n') end
+end })
+
 local filtro = arg and arg[1]
 local files = vim.fn.glob(root .. '/tests/test_*.lua', false, true)
 local n, falliti = 0, 0
@@ -26,6 +31,7 @@ for _, f in ipairs(files) do
       table.sort(nomi)
       for _, nome in ipairs(nomi) do
         n = n + 1
+        corrente = vim.fn.fnamemodify(f, ':t') .. ' :: ' .. nome
         local ok2, err = xpcall(suite[nome], debug.traceback)
         if not ok2 then
           falliti = falliti + 1
@@ -35,6 +41,7 @@ for _, f in ipairs(files) do
     end
   end
 end
+finito = true
 if falliti > 0 then print(falliti .. ' falliti su ' .. n) os.exit(1) end
 print('OK ' .. n .. ' test')
 os.exit(0)

@@ -41,7 +41,7 @@ dattilo
 | Dove | Tasti |
 |---|---|
 | Home e menu | `j` `k` per muoverti, `Invio` per aprire, `c` corso, `d` Dojo, `q` esci |
-| Batti | `i` per scrivere, `Esc` per uscire, `:w` salva e compila |
+| Batti | `i` per scrivere; per spostarti `Esc`, poi `h` `j` `k` `l`, poi `i` di nuovo; `:w` salva e compila |
 | Ovunque | `:q` torna alla home (dalla home chiude l'app), `:e!` ricomincia l'esercizio |
 
 I progressi stanno in `~/.local/share/dattilo/progressi.json`, i file delle lezioni in
