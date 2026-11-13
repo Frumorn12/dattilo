@@ -57,9 +57,11 @@ local function su_righe(st, buf, first, last_old, last_new)
   if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' and not st.finito then
     if last_old - first == 1 and last_new - first == 1 then
       local da, testo = confronto.inseriti(st.prima[first + 1] or '', nuove[1])
-      if da and st.salta and testo == st.salta then
-        st.salta = nil
+      if da and st.salta and st.salta:sub(1, #testo) == testo then
+        -- spazi messi dalla mappa di Invio, arrivano uno alla volta: non sono battuti
+        st.salta = #st.salta > #testo and st.salta:sub(#testo + 1) or nil
       elseif da then
+        st.salta = nil
         st.metriche:inserito(testo, (st.bersaglio[first + 1] or ''):sub(da + 1, da + #testo), ora())
       end
     elseif last_old - first == 1 and last_new - first == 2 then
