@@ -30,7 +30,9 @@ local function prova_soluzione(m)
   require('dattilo.batti').opzioni(buf) -- le stesse opzioni del buffer della lezione
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, m.partenza)
   pcall(vim.api.nvim_win_set_cursor, 0, { m.pos[1] + 1, m.pos[2] })
-  local ok, e = pcall(vim.api.nvim_feedkeys, vim.keycode(m.soluzione), 'xt', false)
+  -- feedkeys con "t" si comporta come tasti battuti (anche le macro); :silent zittisce ricerche e messaggi
+  vim.g.dattilo_tasti = vim.keycode(m.soluzione)
+  local ok, e = pcall(vim.cmd, 'silent call feedkeys(g:dattilo_tasti, "xt")')
   vim.cmd('stopinsert')
   local righe = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   vim.api.nvim_buf_delete(buf, { force = true })
