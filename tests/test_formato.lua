@@ -143,4 +143,10 @@ T['riempi: le soluzioni scrivono i blocchi obiettivo e il par'] = function()
   vero(r[1]:find('cambiate: 1', 1, true), r[1])
   vero(nuovo:find('## Spiegazione\n1: x', 1, true))
 end
+T['riempi: il Rompi con soluzione riceve il testo rotto'] = function()
+  local testo = table.concat({ '---', 'titolo: t', 'file: main.js', '---', '## Batti', '```js', 'const a = 1;', 'console.log(a);', '```',
+    '', '## Rompi', 'consegna: c', 'cerca: SyntaxError', 'soluzione: f;x', '```js', '```' }, '\n')
+  local nuovo = require('dattilo.controlla').riempi(testo, '01-x.md')
+  uguale(formato.lezione(nuovo, '01-x.md', 1).rompi.esempio, { 'const a = 1', 'console.log(a);' })
+end
 return T

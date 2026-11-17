@@ -110,6 +110,16 @@ function M.riempi(testo, nome)
       #risultato - #m.partenza, #cambiate > 12 and (table.concat(vim.list_slice(cambiate, 1, 12), ', ') .. '…') or table.concat(cambiate, ', '))
     k = k + 1
   end
+  local L = formato.lezione(table.concat(righe, '\n'), nome, 1, { riempi = true })
+  if L and L.rompi and L.rompi.soluzione and L.rompi.blocco then
+    local rotto, e = prova_soluzione({ partenza = L.rompi.ripara, pos = { 0, 0 }, soluzione = L.rompi.soluzione })
+    if not rotto then return nil, { { file = nome, riga = L.rompi.blocco.riga, msg = 'Rompi: la soluzione dà errore: ' .. tostring(e) } } end
+    local nuove = vim.list_slice(righe, 1, L.rompi.blocco.riga)
+    vim.list_extend(nuove, rotto)
+    vim.list_extend(nuove, vim.list_slice(righe, L.rompi.blocco.riga + L.rompi.blocco.n + 1))
+    righe = nuove
+    resoconto[#resoconto + 1] = 'rompi: esempio scritto dai tasti ' .. L.rompi.soluzione
+  end
   return table.concat(righe, '\n'), resoconto
 end
 

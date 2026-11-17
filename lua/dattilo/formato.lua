@@ -314,6 +314,13 @@ function M.lezione(testo, nome_file, indice, opzioni)
       local kv = s.kv
       L.rompi = { titolo = s.titolo or 'Rompilo', consegna = kv.consegna and kv.consegna.v or '', attesa = kv.attesa and kv.attesa.v or 'errore',
         cerca = kv.cerca and kv.cerca.v, dopo = kv.dopo and kv.dopo.v or '‹u› annulla, poi ‹:w›.', esempio = s.blocchi[1] and s.blocchi[1].righe }
+      -- facoltativa: i tasti che rompono il codice, usati da dattilo riempi per scrivere l'esempio
+      if kv.soluzione and kv.soluzione.v ~= '' then
+        L.rompi.soluzione = kv.soluzione.v
+        local motivo = M.soluzione_non_ammessa(kv.soluzione.v)
+        if motivo then e(kv.soluzione.riga, motivo) end
+      end
+      L.rompi.blocco = s.blocchi[1] and { riga = s.blocchi[1].riga, n = #s.blocchi[1].righe }
       if L.rompi.attesa ~= 'errore' and L.rompi.attesa ~= 'warning' then e(kv.attesa.riga, 'attesa deve essere errore o warning') end
       if L.rompi.consegna == '' then e(s.riga, 'manca consegna nel Rompi') end
       if not L.rompi.esempio then e(s.riga, 'Rompi vuole un blocco con il testo rotto d\'esempio') end
