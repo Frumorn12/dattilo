@@ -35,11 +35,21 @@ int main(void) {
 }
 ```
 
+### Blocchi
+1-1: Le inclusioni | stdio.h porta la dichiarazione di printf, come nella lezione 1. | Si parte sempre dalle librerie che servono.
+3-6: La funzione sum | La tua prima funzione: prende due int, li somma in una variabile locale e restituisce il risultato. | Prima di main definisci gli attrezzi: una funzione che somma.
+8-11: La funzione main | Chiama sum dentro printf e stampa il risultato con %d, poi restituisce 0. | sum è pronta; ora main la usa e stampa quello che restituisce.
+
 ### Suggerimenti
-3: Una funzione: tipo di ritorno, nome, parametri con il loro tipo. In C il tipo si scrive sempre.
-4: c è una variabile locale: nasce quando sum viene chiamata e sparisce al return.
-9: %d dentro la stringa viene sostituito dal numero che passi dopo la virgola.
+1: #include porta le dichiarazioni di stdio.h, tra cui printf.
+3: Una funzione: tipo di ritorno (int), nome (sum), parametri con il loro tipo. In C il tipo si scrive sempre.
+4: c è una variabile locale: nasce quando sum viene chiamata e sparisce al return. a + b somma i due parametri.
+5: return consegna c a chi ha chiamato sum.
+6: La graffa chiude sum. Una funzione va definita prima di essere usata, per questo sum sta sopra main.
+8: main come nella lezione 1: int di ritorno, nessun argomento.
+9: %d dentro la stringa viene sostituito dal numero che passi dopo la virgola: qui il risultato di sum(10, 20).
 10: Il valore di ritorno di main arriva alla shell: ./sum; echo $?
+11: La graffa chiude main e il programma.
 
 ## Uscita
 ```text
@@ -49,6 +59,7 @@ Hello World 30
 ## Modifica: Modifica 1/2
 consegna: Fagli sommare 5 e 7.
 aiuto: ‹9G› va alla riga 9, ‹f1› salta sul 10, ‹ci(› cambia gli argomenti di sum.
+motivo: sum non sa nulla dei numeri: li riceve da chi la chiama, quindi cambi solo la chiamata.
 par: 12
 soluzione: 9Gf1ci(5, 7<Esc>
 mostra: 9G · f1 · ci( · 5, 7 · Esc

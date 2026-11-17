@@ -39,18 +39,65 @@ local function prova_soluzione(m)
   return ok and righe or nil, e
 end
 
-function M.pacchetto(dir)
+-- Completezza per gli autori: ogni riga non vuota di Batti ha un suggerimento ed è dentro un blocco.
+function M.completezza(L)
+  local out = {}
+  local codice, bl = L.batti.codice, L.batti.blocchi or {}
+  local senza_tip, fuori = {}, {}
+  for i, l in ipairs(codice) do
+    if l:match('%S') then
+      if not L.batti.suggerimenti[i] then senza_tip[#senza_tip + 1] = i end
+      if #bl > 0 then
+        local dentro = false
+        for _, b in ipairs(bl) do if i >= b.da and i <= b.a then dentro = true break end end
+        if not dentro then fuori[#fuori + 1] = i end
+      end
+    end
+  end
+  if #senza_tip > 0 then out[#out + 1] = 'righe senza suggerimento: ' .. table.concat(senza_tip, ', ') end
+  if #bl == 0 then out[#out + 1] = 'nessun blocco: aggiungi ### Blocchi in Batti'
+  elseif #fuori > 0 then out[#out + 1] = 'righe fuori dai blocchi: ' .. table.concat(fuori, ', ') end
+  for i, m in ipairs(L.modifiche) do
+    if not m.motivo then out[#out + 1] = 'modifica ' .. i .. ' senza motivo' end
+  end
+  return out
+end
+
+-- Ogni riga di Batti con il suo blocco e il suo suggerimento, per controllare l'allineamento.
+function M.tip(L)
+  local out, bl = {}, L.batti.blocchi or {}
+  local k = 1
+  for i, l in ipairs(L.batti.codice) do
+    local b = bl[k]
+    if b and i == b.da then
+      out[#out + 1] = ''
+      out[#out + 1] = string.format('== %d-%d %s | %s | %s', b.da, b.a, b.titolo, b.cosa or '', b.quadro or '')
+    end
+    out[#out + 1] = string.format('%3d  %s', i, l)
+    if L.batti.suggerimenti[i] then out[#out + 1] = '       ↳ ' .. L.batti.suggerimenti[i] end
+    if b and i == b.a then k = k + 1 end
+  end
+  return out
+end
+
+local function stessa(L, solo) return not solo or L.id == solo or L.id == solo:gsub('%.md$', '') end
+
+function M.pacchetto(dir, solo)
   local out = { ok = true, righe = {} }
   local function riga(stato, testo)
     out.righe[#out.righe + 1] = { stato = stato, testo = testo }
     if stato == 'errore' then out.ok = false end
   end
   local P = pacchetti.carica_cartella(dir)
-  for _, e in ipairs(P.errori) do riga('errore', e.file .. ':' .. e.riga .. ': ' .. e.msg) end
+  for _, e in ipairs(P.errori) do
+    if not solo or e.file:gsub('%.md$', '') == solo:gsub('%.md$', '') or e.file == 'pacchetto.json' then riga('errore', e.file .. ':' .. e.riga .. ': ' .. e.msg) end
+  end
   if not P.m then return out end
   riga('ok', 'manifesto ' .. P.m.id .. ' ' .. P.m.versione .. ', ' .. #P.lezioni .. ' lezioni')
   for _, L in ipairs(P.lezioni) do
+   if stessa(L, solo) then
     local nome = L.id
+    for _, msg in ipairs(M.completezza(L)) do riga('errore', nome .. ': ' .. msg) end
     local r = gira(L, L.batti.codice)
     if not r.ok then riga('errore', nome .. ': il codice di Batti non gira: ' .. prima_riga(r))
     elseif L.esegui.atteso and r.uscita ~= L.esegui.atteso then
@@ -72,6 +119,7 @@ function M.pacchetto(dir)
       if compila.fallito(rr, L.rompi.attesa, L.rompi.cerca) then riga('ok', nome .. ': Rompi dà ' .. L.rompi.attesa)
       else riga('errore', nome .. ': l\'esempio di Rompi non dà ' .. L.rompi.attesa .. (L.rompi.cerca and (' con "' .. L.rompi.cerca .. '"') or '')) end
     end
+   end
   end
   return out
 end

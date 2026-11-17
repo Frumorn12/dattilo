@@ -147,7 +147,7 @@ function M.front_matter(testo, nome)
 end
 
 local CHIAVI = { consegna = true, aiuto = true, par = true, soluzione = true, mostra = true, pos = true,
-  attesa = true, cerca = true, dopo = true, titolo = true }
+  attesa = true, cerca = true, dopo = true, titolo = true, motivo = true }
 
 -- Divide il corpo in sezioni ## e sottosezioni ###, con blocchi di codice e coppie chiave: valore.
 local function sezioni(righe, prima)
@@ -246,12 +246,44 @@ function M.lezione(testo, nome_file, indice)
       end
     elseif s.nome == 'Batti' then
       if not s.blocchi[1] then e(s.riga, 'la sezione Batti non ha un blocco di codice') end
-      L.batti = { codice = s.blocchi[1] and s.blocchi[1].righe or {}, suggerimenti = {} }
+      L.batti = { codice = s.blocchi[1] and s.blocchi[1].righe or {}, suggerimenti = {}, blocchi = {} }
+      local codice = L.batti.codice
       local sg = s.sotto['Suggerimenti']
       if sg then
         for _, r in ipairs(sg.testo) do
           local n, t = r.t:match('^(%d+):%s*(.*)$')
-          if n then L.batti.suggerimenti[tonumber(n)] = t end
+          if n then
+            n = tonumber(n)
+            if n < 1 or n > #codice then e(r.riga, 'suggerimento sulla riga ' .. n .. ', fuori dal codice (' .. #codice .. ' righe)')
+            elseif not codice[n]:match('%S') then e(r.riga, 'suggerimento sulla riga ' .. n .. ', che è vuota')
+            else L.batti.suggerimenti[n] = t end
+          end
+        end
+      end
+      local bl = s.sotto['Blocchi']
+      if bl then
+        local fine = 0
+        for _, r in ipairs(bl.testo) do
+          local da, a, t = r.t:match('^(%d+)%-(%d+):%s*(.*)$')
+          if not da then
+            local solo
+            solo, t = r.t:match('^(%d+):%s*(.*)$')
+            da, a = solo, solo
+          end
+          if da then
+            da, a = tonumber(da), tonumber(a)
+            local parti = vim.tbl_map(trim, vim.split(' ' .. t .. ' ', ' | ', { plain = true }))
+            if da > a then e(r.riga, 'blocco ' .. da .. '-' .. a .. ': la prima riga viene dopo l\'ultima')
+            elseif da < 1 or a > #codice then e(r.riga, 'blocco ' .. da .. '-' .. a .. ' fuori dal codice (' .. #codice .. ' righe)')
+            elseif da <= fine then e(r.riga, 'blocco ' .. da .. '-' .. a .. ' sovrapposto o fuori ordine (il precedente finisce alla riga ' .. fine .. ')')
+            elseif (parti[1] or '') == '' then e(r.riga, 'blocco ' .. da .. '-' .. a .. ' senza titolo')
+            else
+              L.batti.blocchi[#L.batti.blocchi + 1] = { da = da, a = a, titolo = parti[1], cosa = parti[2] ~= '' and parti[2] or nil,
+                quadro = parti[3] ~= '' and parti[3] or nil }
+              fine = a
+            end
+          elseif r.t:match('%S') then e(r.riga, 'riga non valida nei Blocchi: scrivi da-a: Titolo | cosa fa | quadro')
+          end
         end
       end
     elseif s.nome == 'Uscita' then
@@ -259,7 +291,7 @@ function M.lezione(testo, nome_file, indice)
     elseif s.nome == 'Modifica' then
       local kv = s.kv
       local m = { titolo = s.titolo, consegna = kv.consegna and kv.consegna.v or '', aiuto = kv.aiuto and kv.aiuto.v or '',
-        soluzione = kv.soluzione and kv.soluzione.v, pos = { 0, 0 } }
+        soluzione = kv.soluzione and kv.soluzione.v, pos = { 0, 0 }, motivo = kv.motivo and kv.motivo.v ~= '' and kv.motivo.v or nil }
       local par = kv.par and tonumber(kv.par.v)
       if not par then e(kv.par and kv.par.riga or s.riga, 'par mancante o non numerico') end
       m.par = par
@@ -343,7 +375,7 @@ function M.manifesto(testo, nome)
   if type(m.id) ~= 'string' or not m.id:match('^[a-z0-9%-]+$') then e('id mancante o non valido (solo minuscole, cifre e trattini)') end
   if type(m.titolo) ~= 'string' or m.titolo == '' then e('manca titolo') end
   if type(m.versione) ~= 'string' or not m.versione:match('^[%w.%-]+$') then e('versione mancante o non valida (es. 0.1.0)') end
-  for _, k in ipairs({ 'autore', 'descrizione', 'linguaggio' }) do
+  for _, k in ipairs({ 'autore', 'descrizione', 'linguaggio', 'percorso' }) do
     if nullo(m[k]) then m[k] = nil elseif type(m[k]) ~= 'string' then e(k .. ' deve essere un testo') end
   end
   if nullo(m.richiede) then m.richiede = nil

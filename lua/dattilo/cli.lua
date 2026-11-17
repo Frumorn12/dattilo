@@ -35,6 +35,13 @@ const nome = "mondo";
 console.log("ciao " + nome);
 ```
 
+### Blocchi
+1-2: Il saluto | Un nome in una costante e una riga che lo stampa. | Il programma più piccolo: un dato e una stampa.
+
+### Suggerimenti
+1: const dichiara un nome che non cambierà: qui il testo "mondo".
+2: console.log stampa sul terminale; + attacca le due stringhe.
+
 ## Uscita
 ```text
 ciao mondo
@@ -43,6 +50,7 @@ ciao mondo
 ## Modifica
 consegna: Saluta Andrea invece del mondo.
 aiuto: ‹ci"› cambia il testo tra le virgolette della riga.
+motivo: Il saluto dipende solo dalla costante: cambi il dato e la stampa segue.
 par: 10
 soluzione: ci"Andrea<Esc>
 mostra: ci" · Andrea · Esc
@@ -112,20 +120,39 @@ local function comando_nuovo(args)
 end
 
 local function comando_controlla(args)
-  local dir = args[2]
-  if not dir or vim.fn.isdirectory(dir) == 0 then scrivi('uso: dattilo controlla <cartella del pacchetto>') return 1 end
+  local tip, pos = false, {}
+  for i = 2, #args do
+    if args[i] == '--tip' then tip = true else pos[#pos + 1] = args[i] end
+  end
+  local dir, solo = pos[1], pos[2]
+  if not dir or vim.fn.isdirectory(dir) == 0 or (tip and not solo) then
+    scrivi('uso: dattilo controlla <cartella del pacchetto> [lezione]\n     dattilo controlla --tip <cartella> <lezione>')
+    return 1
+  end
   local assoluta = vim.fn.fnamemodify(dir, ':p'):gsub('/$', '')
+  if tip then
+    local P = require('dattilo.pacchetti').carica_cartella(assoluta)
+    for _, e in ipairs(P.errori) do scrivi('✗ ' .. e.file .. ':' .. e.riga .. ': ' .. e.msg) end
+    for _, L in ipairs(P.lezioni) do
+      if L.id == solo or L.id == solo:gsub('%.md$', '') then
+        for _, l in ipairs(require('dattilo.controlla').tip(L)) do scrivi(l) end
+        return 0
+      end
+    end
+    scrivi('lezione non trovata: ' .. solo)
+    return 1
+  end
   -- il verificatore esegue codice e soluzioni del pacchetto: se si può, lo fa dentro la sandbox
   local compila = require('dattilo.compila')
   if compila.sandbox() then
     local a = compila.argomenti_sandbox({}, { radice, assoluta }, { 'nvim', 'node', 'cc' })
-    vim.list_extend(a, { '--', 'nvim', '--clean', '--headless', '-l', radice .. '/lua/dattilo/cli.lua', 'controlla', assoluta })
+    vim.list_extend(a, { '--', 'nvim', '--clean', '--headless', '-l', radice .. '/lua/dattilo/cli.lua', 'controlla', assoluta, solo })
     local esito = vim.system(a, { text = true }):wait()
     io.stdout:write(esito.stdout or '')
     if esito.code ~= 0 and not (esito.stdout or ''):find('problemi', 1, true) then io.stdout:write(esito.stderr or '') end
     return esito.code
   end
-  local r = require('dattilo.controlla').pacchetto(assoluta)
+  local r = require('dattilo.controlla').pacchetto(assoluta, solo)
   for _, x in ipairs(r.righe) do scrivi((x.stato == 'ok' and '  ✓ ' or '  ✗ ') .. x.testo) end
   scrivi(r.ok and 'Tutto a posto.' or 'Ci sono problemi.')
   return r.ok and 0 or 1
@@ -138,7 +165,7 @@ function M.main(args)
   elseif c == 'pacchetti' then return comando_pacchetti()
   elseif c == 'nuovo' then return comando_nuovo(args)
   elseif c == 'controlla' then return comando_controlla(args) end
-  scrivi('uso: dattilo [importa <file> | esporta <id> [file] | pacchetti | nuovo <cartella> | controlla <cartella>]')
+  scrivi('uso: dattilo [importa <file> | esporta <id> [file] | pacchetti | nuovo <cartella> | controlla [--tip] <cartella> [lezione]]')
   return c and 1 or 0
 end
 

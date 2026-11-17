@@ -30,11 +30,16 @@ int main(void) {
 }
 ```
 
+### Blocchi
+1-1: Le inclusioni | Prima di tutto si dice al compilatore quali librerie servono: qui stdio.h, quella dell'input e dell'output. | Un programma C inizia dalle dichiarazioni: senza, il compilatore non conosce printf.
+3-6: La funzione main | Il corpo del programma: stampa una riga e restituisce 0 al sistema. | Hai incluso stdio.h; ora scrivi il codice che gira davvero.
+
 ### Suggerimenti
-1: Scrivi quello che vedi in grigio. Dopo ‹Invio› il rientro lo mette dattilo: non battere gli spazi iniziali.
-3: main è la funzione da cui parte ogni programma C. Le graffe aprono e chiudono il suo corpo.
-4: printf stampa. \n vuol dire "vai a capo": printf non lo aggiunge da sola.
-5: Il ; chiude ogni istruzione. return 0 dice al sistema che è andato tutto bene.
+1: #include incolla qui il file stdio.h, dove è dichiarata printf. I < > vogliono dire «cercalo tra i file di sistema».
+3: main è la funzione da cui parte ogni programma C: restituisce un int e, con void, non prende argomenti. La graffa apre il corpo.
+4: printf stampa la stringa tra virgolette. \n va a capo: printf non lo aggiunge da sola. Dopo ‹Invio› il rientro lo mette dattilo.
+5: return 0 chiude main e dice al sistema «tutto bene». Il ; chiude ogni istruzione.
+6: La graffa chiude il corpo di main: il programma finisce qui.
 
 ## Uscita
 ```text
@@ -44,6 +49,7 @@ Hello World
 ## Modifica: Modifica 1/2
 consegna: Fallo parlare italiano: Hello World diventa Ciao mondo.
 aiuto: ‹3j› scende di tre righe, ‹ci"› cancella dentro le virgolette e ti mette in INSERT.
+motivo: Il testo tra virgolette è un dato come un altro: cambi solo quello e il programma resta identico.
 par: 18
 soluzione: 3jci"Ciao mondo\n<Esc>
 mostra: 3j · ci" · Ciao mondo\n · Esc

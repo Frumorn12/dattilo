@@ -78,4 +78,55 @@ T['manifesto senza id, con id brutto o tipo sconosciuto'] = function()
   local _, e4 = formato.manifesto('{rotto', 'p.json')
   vero(#e1 > 0 and #e2 > 0 and #e3 > 0 and #e4 > 0)
 end
+local function con_blocchi(blocchi, sugg)
+  return table.concat({ '---', 'titolo: t', 'file: main.js', '---', '## Batti', '```js', 'const a = 1;', 'const b = 2;', '',
+    'console.log(a + b);', '```', '', '### Blocchi', blocchi, '', '### Suggerimenti', sugg or '1: a vale uno.',
+    '', '## Modifica', 'consegna: c', 'aiuto: x', 'motivo: Perché sì.', 'par: 1', 'soluzione: x', '```js', 'onst a = 1;', 'const b = 2;', '',
+    'console.log(a + b);', '```' }, '\n')
+end
+T['blocchi: titolo, cosa e quadro'] = function()
+  local L, err = formato.lezione(con_blocchi('1-2: Dati | Due numeri. | Si parte dai dati.\n4-4: Stampa | La somma.'), '01-x.md', 1)
+  uguale(err, {})
+  uguale(L.batti.blocchi, { { da = 1, a = 2, titolo = 'Dati', cosa = 'Due numeri.', quadro = 'Si parte dai dati.' },
+    { da = 4, a = 4, titolo = 'Stampa', cosa = 'La somma.' } })
+  uguale(L.modifiche[1].motivo, 'Perché sì.')
+end
+T['blocchi: una riga sola con N:'] = function()
+  local L = formato.lezione(con_blocchi('1-2: Dati | x\n4: Stampa | y'), '01-x.md', 1)
+  uguale(L.batti.blocchi[2].da, 4)
+  uguale(L.batti.blocchi[2].a, 4)
+end
+T['blocchi non validi: rovesciato, fuori, sovrapposto, senza titolo'] = function()
+  for _, b in ipairs({ '2-1: X | y', '1-9: X | y', '1-2: X | y\n2-4: Z | w', '1-2:  | y', 'boh' }) do
+    local L, err = formato.lezione(con_blocchi(b), '01-x.md', 1)
+    vero(L == nil and #err > 0, b)
+  end
+end
+T['suggerimenti fuori dal codice o su una riga vuota'] = function()
+  local _, e1 = formato.lezione(con_blocchi('1-2: X | y', '3: vuota'), '01-x.md', 1)
+  vero(e1[1].msg:find('vuota'), vim.inspect(e1))
+  local _, e2 = formato.lezione(con_blocchi('1-2: X | y', '9: oltre'), '01-x.md', 1)
+  vero(e2[1].msg:find('fuori dal codice'), vim.inspect(e2))
+end
+T['completezza: righe senza suggerimento, fuori dai blocchi, modifica senza motivo'] = function()
+  local controlla = require('dattilo.controlla')
+  local L = formato.lezione(con_blocchi('1-2: Dati | x'), '01-x.md', 1)
+  local c = controlla.completezza(L)
+  uguale(c, { 'righe senza suggerimento: 2, 4', 'righe fuori dai blocchi: 4' })
+  L.modifiche[1].motivo = nil
+  L.batti.blocchi = {}
+  c = controlla.completezza(L)
+  vero(vim.tbl_contains(c, 'nessun blocco: aggiungi ### Blocchi in Batti') and vim.tbl_contains(c, 'modifica 1 senza motivo'), vim.inspect(c))
+end
+T['tip: ogni riga con blocco e suggerimento'] = function()
+  local L = formato.lezione(con_blocchi('1-2: Dati | x | q'), '01-x.md', 1)
+  local t = require('dattilo.controlla').tip(L)
+  uguale(t[2], '== 1-2 Dati | x | q')
+  uguale(t[3], '  1  const a = 1;')
+  uguale(t[4], '       ↳ a vale uno.')
+end
+T['manifesto: percorso facoltativo'] = function()
+  local m = formato.manifesto('{"id":"ok","titolo":"x","versione":"1","percorso":"Percorso X","esecuzione":{"tipo":"comando","comando":["node","{file}"]}}', 'p.json')
+  uguale(m.percorso, 'Percorso X')
+end
 return T
