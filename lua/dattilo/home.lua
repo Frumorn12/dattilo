@@ -63,13 +63,19 @@ local function voci(percorsi)
     v[#v + 1] = { corto(perc.titolo), catena(perc), i == 1 and 'r' or '', function() M.percorso(id) end }
   end
   vim.list_extend(v, {
-    { 'Pacchetti', 'JavaScript, Three.js, ATON, SmartExploration…', 'p', function() M.pacchetti() end },
+    { 'Pacchetti', 'importa, esporta e apri i pacchetti di lezioni', 'p', function() M.pacchetti() end },
     { 'Dojo Vim', 'cintura bianca · 7 esercizi', 'd', function() require('dattilo.dojo').apri(1) end },
     { 'Endless', 'arriva con il passo 4', 'e', nil },
     { 'Statistiche', 'arriva con il passo 4', 's', nil },
     { 'Esci', 'chiude dattilo', 'q', function() vim.cmd('qa!') end },
   })
   return v
+end
+
+-- Descrizione di una voce in una colonna di 50 caratteri visibili.
+local function descrizione(t)
+  local d = vim.fn.strcharpart(t, 0, 50)
+  return d .. string.rep(' ', math.max(0, 50 - vim.fn.strdisplaywidth(d)))
 end
 
 local function disegna(buf, lista, percorsi)
@@ -85,8 +91,8 @@ local function disegna(buf, lista, percorsi)
   r[#r + 1] = {}
   for i, v in ipairs(lista) do
     local on = i == M.sel
-    r[#r + 1] = { { on and '  ▸ ' or '    ', on and 'DattiloAccento' or nil }, { string.format('%-16s', v[1]), on and 'DattiloSelezione' or 'DattiloForte' },
-      { string.format('%-44s', vim.fn.strcharpart(v[2], 0, 44)) .. string.rep(' ', math.max(0, 44 - vim.fn.strdisplaywidth(v[2]))), on and 'DattiloSelezione' or 'DattiloMuto' }, { '  ' .. v[3], 'DattiloAccento' } }
+    r[#r + 1] = { { on and '  ▸ ' or '    ', on and 'DattiloAccento' or nil }, { v[1] .. string.rep(' ', math.max(1, 27 - vim.fn.strdisplaywidth(v[1]))), on and 'DattiloSelezione' or 'DattiloForte' },
+      { descrizione(v[2]), on and 'DattiloSelezione' or 'DattiloMuto' }, { '  ' .. v[3], 'DattiloAccento' } }
   end
   local l = prossima_lezione(p)
   if l then

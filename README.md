@@ -11,8 +11,13 @@ Ogni lezione segue sei passi:
 
 1. **Briefing**: due righe su cosa farai e le mosse nuove.
 2. **Batti**: il codice della lezione è in grigio e lo copri scrivendo. Gli errori
-   diventano rossi; parole al minuto e precisione sono nella barra in basso.
-3. **Modifica**: cambi il codice con le mosse di Vim, con i tasti contati contro un par.
+   diventano rossi; parole al minuto e precisione sono nella barra in basso. Il riquadro
+   in alto spiega su tre livelli quello che stai scrivendo: **Riga** (cosa fa la riga del
+   cursore), **Blocco** (il pezzo di programma di cui fa parte) e **Fin qui** (i blocchi
+   già scritti, quello in corso e il quadro generale). Gli avvisi su Vim (errore, sei in
+   NORMAL, riga lasciata a metà) compaiono in cima senza coprire il resto.
+3. **Modifica**: cambi il codice con le mosse di Vim, con i tasti contati contro un par;
+   il riquadro dice anche perché la modifica ha senso.
 4. **Rompi**: lo rompi apposta e leggi l'errore o il warning vero di `gcc`, poi `u` e `:w`.
 5. **Cosa hai scritto**: la spiegazione riga per riga, con i minuti del video.
 6. **Riepilogo**: tempi, stelle e prossima lezione.
@@ -40,6 +45,27 @@ dattilo controlla mio-pacchetto       # il codice gira? le soluzioni stanno nel 
 ```
 
 Nell'app: home → **Pacchetti** (`p`), poi `i` importa ed `e` esporta.
+
+### Percorsi
+
+I pacchetti che si richiedono a catena (`"richiede"` nel manifesto) diventano un
+**percorso**: una voce sola nella home (`r` per il primo), con i pacchetti come capitoli
+nell'ordine giusto. Oggi c'è il **Percorso SmartExploration**: JavaScript → Three.js →
+ATON → SmartExploration. Le lezioni del percorso si aprono **in fila**: ognuna dopo aver
+finito la precedente, anche da un capitolo all'altro. Una lezione sbloccata resta aperta
+anche se più avanti vengono aggiunte lezioni prima di lei. Il titolo del percorso viene
+dal campo `"percorso"` del pacchetto finale.
+
+### Scrivere lezioni
+
+```sh
+dattilo riempi mio-pacchetto/lezioni/01-x.md     # scrive blocchi obiettivo, par ed esempio di Rompi dalle soluzioni
+dattilo controlla mio-pacchetto 01-x             # controlla una lezione sola
+dattilo controlla --tip mio-pacchetto 01-x       # ogni riga con il suo blocco e il suo suggerimento
+```
+
+La guida per autori è `SCRIVERE.md` nel repo dei pacchetti; il progetto dei suggerimenti
+e dei percorsi è in `docs/superpowers/specs/2026-11-17-suggerimenti-percorso-design.md`.
 
 Il formato completo di una lezione è descritto in
 `docs/superpowers/specs/2026-11-13-pacchetti-design.md`. Ogni pacchetto dice come si
@@ -83,7 +109,7 @@ dattilo
 
 | Dove | Tasti |
 |---|---|
-| Home e menu | `j` `k` per muoverti, `Invio` per aprire, `c` corso C, `p` pacchetti, `d` Dojo, `q` esci |
+| Home e menu | `j` `k` per muoverti, `Invio` per aprire, `c` corso C, `r` percorso, `p` pacchetti, `d` Dojo, `q` esci |
 | Batti | `i` per scrivere; per spostarti `Esc`, poi `h` `j` `k` `l`, poi `i` di nuovo; `:w` salva e compila |
 | Ovunque | `:q` torna alla home (dalla home chiude l'app), `:e!` ricomincia l'esercizio |
 
