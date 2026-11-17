@@ -177,13 +177,14 @@ function M.tip_batti(s, modo)
     for i, x in ipairs(bl) do
       local fatto = true
       for k = x.da, x.a do if righe[k] ~= codice[k] then fatto = false break end end
-      catena[#catena + 1] = (i == bi and '▸ ' or fatto and '✓ ' or '· ') .. x.titolo
+      catena[#catena + 1] = (fatto and '✓ ' or i == bi and '▸ ' or '· ') .. x.titolo
     end
     sezioni[#sezioni + 1] = { etichetta = 'Fin qui', testo = table.concat(catena, '  ') .. (b.quadro and ('\n' .. b.quadro) or ''), priorita = 3 }
   else
     titolo = 'RIGA ' .. r .. ' di ' .. #codice
     sezioni[#sezioni + 1] = { etichetta = 'Fin qui', testo = 'Riga ' .. r .. ' di ' .. #codice .. '. ' .. (L.titolo or ''), priorita = 1 }
   end
+  if nome == 'SALVA' or nome == 'FATTO' then titolo = nome .. ' · ' .. #codice .. ' righe scritte' end
   if not nome and not sugg then
     sezioni[#sezioni + 1] = { etichetta = 'Vim', testo = 'Per spostarti: ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i›.', hl_etichetta = 'DattiloMuto', priorita = 0 }
   end
@@ -440,6 +441,19 @@ function M.fine(s)
   local tasti, par = s.tasti_modifica or 0, s.par_modifica or 0
   local P = pacchetti.carica(L.pacchetto)
   local pros = L.prossima and P and P.lezioni[L.prossima]
+  local pros_pacchetto, pros_n, pros_capitolo = L.pacchetto, L.prossima, nil
+  -- nel percorso la prossima può essere la prima del capitolo dopo, e resta sbloccata
+  local percorso = pacchetti.percorso_di(L.pacchetto)
+  if percorso then
+    local i = pacchetti.posizione(percorso, L.pacchetto, L.id)
+    local v = i and percorso.lezioni[i + 1]
+    pros = v and v.L or nil
+    if v then
+      pros_pacchetto, pros_n = v.pacchetto, v.n
+      if v.pacchetto ~= L.pacchetto then pros_capitolo = require('dattilo.home').corto(percorso.capitoli[v.capitolo].titolo) end
+      progressi.sblocca(v.pacchetto .. '/' .. v.L.id)
+    end
+  end
   local futura = not pros and P and P.in_arrivo[1]
   local mosse = table.concat(vim.tbl_map(function(k) return '‹' .. k .. '›' end, L.mosse), ' ')
   local r = {
@@ -458,7 +472,7 @@ function M.fine(s)
   if #L.concetti > 0 then r[#r + 1] = { { '   Concetti   ', 'DattiloTesto' }, { table.concat(L.concetti, ' · '), 'DattiloForte' } } end
   r[#r + 1] = {}
   r[#r + 1] = { { '   Ripasso    ', 'DattiloTesto' }, { 'domani, poi tra 3 e 7 giorni (arriva con il ripasso)', 'DattiloForte' } }
-  if pros then r[#r + 1] = { { '   Prossima   ', 'DattiloTesto' }, { pros.etichetta .. ' · ' .. pros.titolo, 'DattiloCiano' } }
+  if pros then r[#r + 1] = { { '   Prossima   ', 'DattiloTesto' }, { (pros_capitolo and (pros_capitolo .. ' · ') or '') .. pros.etichetta .. ' · ' .. pros.titolo, 'DattiloCiano' } }
   elseif futura then r[#r + 1] = { { '   Prossima   ', 'DattiloTesto' }, { (futura.etichetta or '') .. ' · ' .. (futura.titolo or '') .. ' (in arrivo)', 'DattiloMuto' } } end
   r[#r + 1] = {}
   r[#r + 1] = schermo.con_tasti('   ', (pros and '‹Invio› prossima lezione   ' or '‹Invio› torna all\'elenco   ') .. '‹r› rifai questa   ‹q› home', 'DattiloMuto')
@@ -467,7 +481,7 @@ function M.fine(s)
   schermo.mostra(buf, 'testo')
   vim.api.nvim_win_set_cursor(0, { 2, 0 })
   mappa(buf, { '<CR>', 'l' }, function()
-    if pros then M.apri(L.pacchetto, L.prossima) else require('dattilo.home').lezioni(L.pacchetto) end
+    if pros then M.apri(pros_pacchetto, pros_n) else require('dattilo.home').lezioni(L.pacchetto) end
   end)
   mappa(buf, 'r', function() M.apri(L.pacchetto, L.numero) end)
   mappa(buf, 'q', function() require('dattilo.home').apri() end)

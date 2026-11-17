@@ -35,18 +35,44 @@ local function mappa(buf, tasti, fn)
   end
 end
 
-local function voci()
-  return {
+-- Nome corto di un capitolo: il titolo del pacchetto fino alla prima virgola.
+local function corto(titolo) return (titolo:match('^([^,]+)') or titolo) end
+M.corto = corto
+
+local function catena(perc)
+  return table.concat(vim.tbl_map(function(c) return corto(c.titolo) end, perc.capitoli), ' → ')
+end
+
+-- La prima lezione aperta e non ancora fatta di un percorso.
+local function prossima_del_percorso(perc, p)
+  for i, v in ipairs(perc.lezioni) do
+    if not p.lezioni[v.pacchetto .. '/' .. v.L.id] then
+      if progressi.aperta(perc, i, p) then return i, v end
+      return nil
+    end
+  end
+  return nil
+end
+
+local function voci(percorsi)
+  local v = {
     { 'Corso C', 'le lezioni di antirez, una alla volta', 'c', function() M.lezioni('corso-c-antirez') end },
+  }
+  for i, perc in ipairs(percorsi) do
+    local id = perc.id
+    v[#v + 1] = { corto(perc.titolo), catena(perc), i == 1 and 'r' or '', function() M.percorso(id) end }
+  end
+  vim.list_extend(v, {
     { 'Pacchetti', 'JavaScript, Three.js, ATON, SmartExploration…', 'p', function() M.pacchetti() end },
     { 'Dojo Vim', 'cintura bianca · 7 esercizi', 'd', function() require('dattilo.dojo').apri(1) end },
     { 'Endless', 'arriva con il passo 4', 'e', nil },
     { 'Statistiche', 'arriva con il passo 4', 's', nil },
     { 'Esci', 'chiude dattilo', 'q', function() vim.cmd('qa!') end },
-  }
+  })
+  return v
 end
 
-local function disegna(buf)
+local function disegna(buf, lista, percorsi)
   local p = progressi.carica()
   local fatte = vim.tbl_count(p.lezioni)
   local ultima = p.sessioni[#p.sessioni]
@@ -57,10 +83,10 @@ local function disegna(buf)
   r[#r + 1] = { { '    Ciao Andrea.  ', 'DattiloForte' }, { fatte .. (fatte == 1 and ' lezione fatta' or ' lezioni fatte'), 'DattiloGiallo' },
     { ultima and ('  ·  ultima volta ' .. ultima.wpm .. ' parole al minuto') or '  ·  si comincia dalla lezione 1', 'DattiloTesto' } }
   r[#r + 1] = {}
-  for i, v in ipairs(voci()) do
+  for i, v in ipairs(lista) do
     local on = i == M.sel
     r[#r + 1] = { { on and '  ▸ ' or '    ', on and 'DattiloAccento' or nil }, { string.format('%-16s', v[1]), on and 'DattiloSelezione' or 'DattiloForte' },
-      { string.format('%-44s', v[2]), on and 'DattiloSelezione' or 'DattiloMuto' }, { '  ' .. v[3], 'DattiloAccento' } }
+      { string.format('%-44s', vim.fn.strcharpart(v[2], 0, 44)) .. string.rep(' ', math.max(0, 44 - vim.fn.strdisplaywidth(v[2]))), on and 'DattiloSelezione' or 'DattiloMuto' }, { '  ' .. v[3], 'DattiloAccento' } }
   end
   local l = prossima_lezione(p)
   if l then
@@ -68,8 +94,17 @@ local function disegna(buf)
     r[#r + 1] = { { '    Prossima lezione del corso C', 'DattiloTesto' } }
     r[#r + 1] = { { '    ┃ ', 'DattiloAccento' }, { (l.etichetta or '') .. ' · ' .. (l.titolo or ''), 'DattiloForte' }, { '  ' .. (l.durata or ''), 'DattiloMuto' } }
   end
+  for _, perc in ipairs(percorsi) do
+    local _, v = prossima_del_percorso(perc, p)
+    if v then
+      r[#r + 1] = {}
+      r[#r + 1] = { { '    Prossima del ' .. perc.titolo:gsub('^Percorso', 'percorso'), 'DattiloTesto' } }
+      r[#r + 1] = { { '    ┃ ', 'DattiloAccento' }, { corto(perc.capitoli[v.capitolo].titolo) .. ' · ' .. v.L.etichetta .. ' · ' .. v.L.titolo, 'DattiloForte' },
+        { '  ' .. (v.L.tempo or ''), 'DattiloMuto' } }
+    end
+  end
   r[#r + 1] = {}
-  r[#r + 1] = schermo.con_tasti('    ', '‹j› ‹k› muovi   ‹Invio› apri   ‹c› ‹p› ‹d› scorciatoie   ‹q› esci', 'DattiloMuto')
+  r[#r + 1] = schermo.con_tasti('    ', '‹j› ‹k› muovi   ‹Invio› apri   ‹c› ‹r› ‹p› ‹d› scorciatoie   ‹q› esci', 'DattiloMuto')
   schermo.scrivi(buf, r)
 end
 
@@ -78,12 +113,15 @@ function M.apri()
   stato.schermo, stato.titolo, stato.destra, stato.file, stato.metriche = 'home', 'Home', oggi(), 'home', nil
   vim.cmd('redrawtabline')
   local buf = schermo.buffer('home')
-  disegna(buf)
+  local percorsi = require('dattilo.pacchetti').percorsi()
+  local lista = voci(percorsi)
+  M.sel = math.min(M.sel, #lista)
+  disegna(buf, lista, percorsi)
   schermo.mostra(buf, 'testo')
   vim.api.nvim_win_set_cursor(0, { 7 + M.sel, 0 })
   local function sposta(d)
-    M.sel = (M.sel - 1 + d) % #voci() + 1
-    disegna(buf)
+    M.sel = (M.sel - 1 + d) % #lista + 1
+    disegna(buf, lista, percorsi)
     vim.api.nvim_win_set_cursor(0, { 7 + M.sel, 0 })
   end
   local function apri_voce(v)
@@ -91,14 +129,16 @@ function M.apri()
   end
   mappa(buf, { 'j', '<Down>' }, function() sposta(1) end)
   mappa(buf, { 'k', '<Up>' }, function() sposta(-1) end)
-  mappa(buf, { '<CR>', 'l' }, function() apri_voce(voci()[M.sel]) end)
-  for _, v in ipairs(voci()) do mappa(buf, v[3], function() apri_voce(v) end) end
+  mappa(buf, { '<CR>', 'l' }, function() apri_voce(lista[M.sel]) end)
+  for _, v in ipairs(lista) do if v[3] ~= '' then mappa(buf, v[3], function() apri_voce(v) end) end end
 end
 
 -- Lezioni di un pacchetto: quelle vere, poi quelle in arrivo in grigio.
 function M.lezioni(id)
   chiudi_altro()
   local pacchetti = require('dattilo.pacchetti')
+  local perc, k = pacchetti.percorso_di(id)
+  if perc then return M.percorso(perc.id, k) end
   local P = pacchetti.carica(id)
   if not P then vim.api.nvim_echo({ { 'Pacchetto non trovato: ' .. id, 'DattiloRosso' } }, true, {}) return end
   local tot = #P.lezioni + #P.in_arrivo
@@ -153,6 +193,91 @@ function M.lezioni(id)
     else vim.api.nvim_echo({ { (l.etichetta or '') .. ' non è ancora scritta.', 'DattiloGiallo' } }, false, {}) end
   end)
   mappa(buf, 'q', function() if id == 'corso-c-antirez' then M.apri() else M.pacchetti() end end)
+end
+
+-- Un percorso: i capitoli in ordine, le lezioni con ✓ fatta, ▸ aperta, 🔒 chiusa.
+function M.percorso(id, capitolo)
+  chiudi_altro()
+  local pacchetti = require('dattilo.pacchetti')
+  local perc
+  for _, x in ipairs(pacchetti.percorsi()) do if x.id == id then perc = x end end
+  if not perc then vim.api.nvim_echo({ { 'Percorso non trovato: ' .. tostring(id), 'DattiloRosso' } }, true, {}) return end
+  local p = progressi.carica()
+  local tot = #perc.lezioni
+  local fatte = 0
+  for _, v in ipairs(perc.lezioni) do if p.lezioni[v.pacchetto .. '/' .. v.L.id] then fatte = fatte + 1 end end
+  stato.schermo, stato.titolo, stato.destra, stato.file, stato.metriche = 'percorso', perc.titolo, fatte .. ' di ' .. tot .. ' lezioni', 'percorso', nil
+  vim.cmd('redrawtabline')
+  local buf = schermo.buffer('percorso')
+  M.sel_percorso = M.sel_percorso or {}
+  local sel = M.sel_percorso[id]
+  if capitolo and perc.capitoli[capitolo] and perc.capitoli[capitolo].primo <= perc.capitoli[capitolo].ultimo then sel = perc.capitoli[capitolo].primo end
+  if not sel then sel = prossima_del_percorso(perc, p) or 1 end
+  sel = math.max(1, math.min(sel, math.max(1, tot)))
+  local riga_di = {}
+  local function disegna_percorso()
+    local r = { {}, { { '   ' .. perc.titolo, 'DattiloForte' } },
+      { { '   ' .. catena(perc) .. ' · ' .. fatte .. ' di ' .. tot .. ' lezioni fatte', 'DattiloMuto' } } }
+    for k, cap in ipairs(perc.capitoli) do
+      r[#r + 1] = {}
+      local destra
+      if not cap.P then destra = { 'manca: importa il pacchetto ' .. cap.id, 'DattiloRosso' }
+      else
+        local n_fatte = 0
+        for i = cap.primo, cap.ultimo do local v = perc.lezioni[i] if p.lezioni[v.pacchetto .. '/' .. v.L.id] then n_fatte = n_fatte + 1 end end
+        local chiuso = cap.primo <= cap.ultimo and not progressi.aperta(perc, cap.primo, p)
+        destra = chiuso and { '🔒 dopo ' .. corto(perc.capitoli[k - 1] and perc.capitoli[k - 1].titolo or ''), 'DattiloMuto' }
+          or { n_fatte .. '/' .. (cap.ultimo - cap.primo + 1), n_fatte > cap.ultimo - cap.primo and 'DattiloVerde' or 'DattiloTesto' }
+      end
+      r[#r + 1] = { { string.format('   %d  ', k), 'DattiloAccento' }, { string.format('%-60s', cap.titolo), 'DattiloAccento' }, { '  ' .. destra[1], destra[2] } }
+      for i = cap.primo, cap.ultimo do
+        local v = perc.lezioni[i]
+        local on = i == sel
+        local fatta = p.lezioni[v.pacchetto .. '/' .. v.L.id] ~= nil
+        local aperta = progressi.aperta(perc, i, p)
+        local segno = fatta and '✓ ' or aperta and '▸ ' or '🔒'
+        local hl = on and 'DattiloSelezione' or (aperta and 'DattiloForte' or 'DattiloMuto')
+        r[#r + 1] = { { on and ' ▸ ' or '   ', 'DattiloAccento' }, { segno .. ' ', fatta and 'DattiloVerde' or aperta and 'DattiloAccento' or 'DattiloMuto' },
+          { string.format('%-5s', v.L.etichetta or ''), hl }, { string.format('%-58s', v.L.titolo or ''), hl }, { string.format('%17s', v.L.tempo or ''), 'DattiloMuto' } }
+        riga_di[i] = #r
+      end
+    end
+    r[#r + 1] = {}
+    r[#r + 1] = schermo.con_tasti('   ', '‹j› ‹k› muovi   ‹Invio› apri   ‹q› home   Le lezioni si aprono in fila: finisci la precedente.', 'DattiloMuto')
+    schermo.scrivi(buf, r)
+  end
+  disegna_percorso()
+  schermo.mostra(buf, 'testo')
+  local function cursore() if riga_di[sel] then vim.api.nvim_win_set_cursor(0, { riga_di[sel], 0 }) end end
+  cursore()
+  local function sposta(d)
+    sel = math.max(1, math.min(tot, sel + d))
+    M.sel_percorso[id] = sel
+    disegna_percorso()
+    cursore()
+  end
+  mappa(buf, { 'j', '<Down>' }, function() sposta(1) end)
+  mappa(buf, { 'k', '<Up>' }, function() sposta(-1) end)
+  mappa(buf, 'G', function() sposta(tot) end)
+  mappa(buf, 'gg', function() sposta(-tot) end)
+  mappa(buf, { '<CR>', 'l' }, function()
+    local v = perc.lezioni[sel]
+    if not v then return end
+    if not progressi.aperta(perc, sel) then
+      local msg
+      if v.dopo_mancante then msg = 'Prima importa i pacchetti che mancano nel percorso.'
+      else
+        local prima = perc.lezioni[sel - 1]
+        msg = 'Ancora chiusa: prima finisci ' .. corto(perc.capitoli[prima.capitolo].titolo) .. ' · ' .. prima.L.etichetta .. ' · ' .. prima.L.titolo .. '.'
+      end
+      vim.api.nvim_echo({ { msg, 'DattiloGiallo' } }, false, {})
+      return
+    end
+    M.sel_percorso[id] = sel
+    progressi.sblocca(v.pacchetto .. '/' .. v.L.id)
+    require('dattilo.lezione').apri(v.pacchetto, v.n)
+  end)
+  mappa(buf, 'q', function() M.apri() end)
 end
 
 -- Pacchetti installati.
