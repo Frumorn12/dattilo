@@ -380,6 +380,39 @@ function M.ricomincia()
 end
 
 ---------------------------------------------------------------- spiegazione
+-- Colonne di testo della finestra principale, tolta la colonna dei numeri di riga.
+function M.larghezza_testo(n_righe)
+  return vim.api.nvim_win_get_width(schermo.finestra()) - (math.max(3, #tostring(n_righe)) + 1)
+end
+
+-- Note della spiegazione: tutte in colonna a destra del codice se c'è posto; altrimenti
+-- ognuna subito dopo la sua riga, o sotto la riga se nemmeno così ci sta.
+function M.note_spiegazione(buf, codice, note, utile)
+  local dw = vim.fn.strdisplaywidth
+  local largo, piu_lunga = 0, 0
+  for _, l in ipairs(codice) do largo = math.max(largo, dw(l)) end
+  for _, n in pairs(note) do for _, x in ipairs(n) do piu_lunga = math.max(piu_lunga, dw(x)) end end
+  local col = largo + 4
+  local in_colonna = col + piu_lunga <= utile
+  for riga, parti in pairs(note) do
+    if riga >= 1 and riga <= #codice then
+      local lunga = 0
+      for _, x in ipairs(parti) do lunga = math.max(lunga, dw(x)) end
+      local c = in_colonna and col or (dw(codice[riga]) + 3)
+      if c + lunga <= utile then
+        local altre = {}
+        for k = 2, #parti do altre[#altre + 1] = { { string.rep(' ', c) .. parti[k], 'DattiloTesto' } } end
+        vim.api.nvim_buf_set_extmark(buf, ns, riga - 1, 0, { virt_text = { { parti[1], 'DattiloTesto' } }, virt_text_win_col = c, virt_lines = #altre > 0 and altre or nil })
+      else
+        local rientro = math.max(0, math.min(#(codice[riga]:match('^%s*')), utile - lunga - 2))
+        local sotto = {}
+        for k, x in ipairs(parti) do sotto[#sotto + 1] = { { string.rep(' ', rientro) .. (k == 1 and '↳ ' or '  '), 'DattiloMuto' }, { x, 'DattiloTesto' } } end
+        vim.api.nvim_buf_set_extmark(buf, ns, riga - 1, 0, { virt_lines = sotto })
+      end
+    end
+  end
+end
+
 function M.spiegazione(s)
   if M.s ~= s then return end
   s.passo = 'spiegazione'
@@ -395,16 +428,7 @@ function M.spiegazione(s)
   vim.bo[buf].modifiable, vim.bo[buf].modified = false, false
   pcall(vim.treesitter.start, buf, L.linguaggio or 'c')
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-  local largo = 0
-  for _, l in ipairs(codice) do largo = math.max(largo, vim.fn.strdisplaywidth(l)) end
-  local col = largo + 4
-  for riga, note in pairs(sp.note) do
-    if riga >= 1 and riga <= #codice then
-      local altre = {}
-      for k = 2, #note do altre[#altre + 1] = { { string.rep(' ', col) .. note[k], 'DattiloTesto' } } end
-      vim.api.nvim_buf_set_extmark(buf, ns, riga - 1, 0, { virt_text = { { note[1], 'DattiloTesto' } }, virt_text_win_col = col, virt_lines = #altre > 0 and altre or nil })
-    end
-  end
+  M.note_spiegazione(buf, codice, sp.note, M.larghezza_testo(#codice))
   local testa = { { { 'Cosa hai scritto', 'DattiloAccento' } } }
   if L.fonte then testa[#testa + 1] = { { 'da ' .. L.fonte, 'DattiloMuto' } } end
   testa[#testa + 1] = { { '' } }

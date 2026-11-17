@@ -238,4 +238,28 @@ T['lezione senza blocchi: riga N di M e niente sezione Blocco'] = function()
   vero(sezione(sez, 'Fin qui').testo:find('Riga 1 di 2', 1, true))
   lezione.chiudi()
 end
+T['spiegazione: le note che non stanno a destra vanno dopo la riga o sotto'] = function()
+  local lezione = require('dattilo.lezione')
+  local buf = vim.api.nvim_create_buf(false, true)
+  local codice = { 'a = 1', 'una riga di codice abbastanza lunga da riempire tutto', 'b = 2' }
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, codice)
+  local ns = vim.api.nvim_create_namespace('dattilo_lezione')
+  local function segni()
+    local out = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do out[m[2] + 1] = m[4] end
+    return out
+  end
+  -- c'è posto: tutte in colonna, a destra della riga più lunga
+  lezione.note_spiegazione(buf, codice, { [1] = { 'uno' }, [3] = { 'tre' } }, 120)
+  local m = segni()
+  uguale({ m[1].virt_text_win_col, m[3].virt_text_win_col }, { 57, 57 })
+  -- poco posto: la riga corta tiene la nota accanto, quella lunga la porta sotto
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  lezione.note_spiegazione(buf, codice, { [1] = { 'nota corta' }, [2] = { 'nota della riga lunga', 'seconda parte' } }, 60)
+  m = segni()
+  uguale(m[1].virt_text_win_col, 8)
+  uguale(m[2].virt_text, nil)
+  uguale(#m[2].virt_lines, 2)
+  vero(m[2].virt_lines[1][2][1] == 'nota della riga lunga', vim.inspect(m[2].virt_lines))
+end
 return T
