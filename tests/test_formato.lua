@@ -129,4 +129,18 @@ T['manifesto: percorso facoltativo'] = function()
   local m = formato.manifesto('{"id":"ok","titolo":"x","versione":"1","percorso":"Percorso X","esecuzione":{"tipo":"comando","comando":["node","{file}"]}}', 'p.json')
   uguale(m.percorso, 'Percorso X')
 end
+T['riempi: le soluzioni scrivono i blocchi obiettivo e il par'] = function()
+  local testo = table.concat({ '---', 'titolo: t', 'file: main.js', '---', '## Batti', '```js', 'const a = 1;', 'console.log(a);', '```',
+    '', '## Modifica: Uno', 'consegna: c', 'par: 0', 'soluzione: f1r2', '```js', '```',
+    '', '## Modifica: Due', 'consegna: c', 'par: 0', 'soluzione: jdd', '```js', 'vecchio', 'testo', '```', '', '## Spiegazione', '1: x' }, '\n')
+  local nuovo, r = require('dattilo.controlla').riempi(testo, '01-x.md')
+  vero(nuovo, vim.inspect(r))
+  local L = formato.lezione(nuovo, '01-x.md', 1)
+  uguale(L.modifiche[1].obiettivo, { 'const a = 2;', 'console.log(a);' })
+  uguale(L.modifiche[1].par, 4)
+  uguale(L.modifiche[2].obiettivo, { 'const a = 2;' })
+  uguale(L.modifiche[2].par, 3)
+  vero(r[1]:find('cambiate: 1', 1, true), r[1])
+  vero(nuovo:find('## Spiegazione\n1: x', 1, true))
+end
 return T

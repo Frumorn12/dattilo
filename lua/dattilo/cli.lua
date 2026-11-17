@@ -158,14 +158,30 @@ local function comando_controlla(args)
   return r.ok and 0 or 1
 end
 
+local function comando_riempi(args)
+  local file = args[2]
+  if not file or vim.fn.filereadable(file) == 0 then scrivi('uso: dattilo riempi <lezione.md>') return 1 end
+  local testo = table.concat(vim.fn.readfile(file), '\n')
+  local nuovo, r = require('dattilo.controlla').riempi(testo, vim.fn.fnamemodify(file, ':t'))
+  if not nuovo then
+    for _, e in ipairs(r) do scrivi('✗ ' .. e.file .. ':' .. e.riga .. ': ' .. e.msg) end
+    return 1
+  end
+  vim.fn.writefile(vim.split(nuovo, '\n', { plain = true }), file)
+  for _, l in ipairs(r) do scrivi('  ' .. l) end
+  scrivi('Riscritti i blocchi obiettivo e il par in ' .. file)
+  return 0
+end
+
 function M.main(args)
   local c = args[1]
   if c == 'importa' then return comando_importa(args)
   elseif c == 'esporta' then return comando_esporta(args)
   elseif c == 'pacchetti' then return comando_pacchetti()
   elseif c == 'nuovo' then return comando_nuovo(args)
-  elseif c == 'controlla' then return comando_controlla(args) end
-  scrivi('uso: dattilo [importa <file> | esporta <id> [file] | pacchetti | nuovo <cartella> | controlla [--tip] <cartella> [lezione]]')
+  elseif c == 'controlla' then return comando_controlla(args)
+  elseif c == 'riempi' then return comando_riempi(args) end
+  scrivi('uso: dattilo [importa <file> | esporta <id> [file] | pacchetti | nuovo <cartella> | controlla [--tip] <cartella> [lezione] | riempi <lezione.md>]')
   return c and 1 or 0
 end
 

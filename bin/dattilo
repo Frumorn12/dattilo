@@ -17,7 +17,7 @@ case "${1:-}" in
       [[ "$risposta" =~ ^[sSyY] ]] || { echo "Annullato."; exit 0; }
     fi
     cli importa "$file" --si ;;
-  esporta|pacchetti|nuovo|controlla) cli "$@" ;;
+  esporta|pacchetti|nuovo|controlla|riempi) cli "$@" ;;
   aiuto|-h|--help) cli aiuto; echo "Senza argomenti: apre l'app." ;;
   *) exec nvim --clean -u "$DIR/init.lua" "$@" ;;
 esac

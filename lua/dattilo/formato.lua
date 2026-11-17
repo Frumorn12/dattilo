@@ -198,7 +198,7 @@ local function corto(s, n)
   return vim.fn.strcharpart(s, 0, n - 1) .. '…'
 end
 
-function M.lezione(testo, nome_file, indice)
+function M.lezione(testo, nome_file, indice, opzioni)
   local err = {}
   local function e(riga, msg) err[#err + 1] = { file = nome_file, riga = riga, msg = msg } end
   local fm, corpo, prima, err_fm = M.front_matter(testo, nome_file)
@@ -302,6 +302,8 @@ function M.lezione(testo, nome_file, indice)
       end
       if not s.blocchi[1] then e(s.riga, 'la Modifica non ha il blocco con il testo obiettivo') end
       m.obiettivo = s.blocchi[1] and s.blocchi[1].righe or {}
+      m.blocco = s.blocchi[1] and { riga = s.blocchi[1].riga, n = #s.blocchi[1].righe } -- per dattilo riempi
+      m.par_riga = kv.par and kv.par.riga
       m.mostra = kv.mostra and vim.tbl_map(trim, vim.split(kv.mostra.v, ' · ', { plain = true })) or { m.soluzione }
       if kv.pos then
         local r, c = kv.pos.v:match('^(%d+):(%d+)$')
@@ -337,7 +339,8 @@ function M.lezione(testo, nome_file, indice)
   for i, m in ipairs(L.modifiche) do
     m.partenza = partenza
     local riga = partenza[m.pos[1] + 1]
-    if not riga or m.pos[2] > math.max(0, #riga - 1) then e(m.pos_riga or 1, 'pos fuori dal testo di partenza') end
+    -- dattilo riempi legge la lezione mentre i blocchi obiettivo sono ancora da scrivere
+    if (not riga or m.pos[2] > math.max(0, #riga - 1)) and not (opzioni and opzioni.riempi) then e(m.pos_riga or 1, 'pos fuori dal testo di partenza') end
     m.titolo = m.titolo or ('Modifica ' .. i .. '/' .. #L.modifiche)
     partenza = m.obiettivo
   end

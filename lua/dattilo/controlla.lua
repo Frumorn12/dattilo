@@ -82,6 +82,37 @@ end
 
 local function stessa(L, solo) return not solo or L.id == solo or L.id == solo:gsub('%.md$', '') end
 
+-- Per gli autori: esegue le soluzioni delle modifiche, una dopo l'altra, e riscrive nel testo
+-- della lezione i blocchi obiettivo e il par. Ritorna il testo nuovo e un resoconto.
+function M.riempi(testo, nome)
+  local formato = require('dattilo.formato')
+  local righe = vim.split(testo, '\n', { plain = true })
+  local resoconto, k = {}, 1
+  while true do
+    local L, err = formato.lezione(table.concat(righe, '\n'), nome, 1, { riempi = true })
+    if not L then return nil, err end
+    local m = L.modifiche[k]
+    if not m then break end
+    if not m.blocco or not m.par_riga then return nil, { { file = nome, riga = 1, msg = 'modifica ' .. k .. ': servono il blocco ``` e la riga par: (anche par: 0)' } } end
+    local risultato, e = prova_soluzione(m)
+    if not risultato then return nil, { { file = nome, riga = m.par_riga, msg = 'modifica ' .. k .. ': la soluzione dà errore: ' .. tostring(e) } } end
+    local cambiate = {}
+    for i = 1, math.max(#risultato, #m.partenza) do
+      if risultato[i] ~= m.partenza[i] then cambiate[#cambiate + 1] = i end
+    end
+    local tasti = esercizio.conta_tasti(m.soluzione)
+    righe[m.par_riga] = 'par: ' .. tasti
+    local nuove = vim.list_slice(righe, 1, m.blocco.riga)
+    vim.list_extend(nuove, risultato)
+    vim.list_extend(nuove, vim.list_slice(righe, m.blocco.riga + m.blocco.n + 1))
+    righe = nuove
+    resoconto[#resoconto + 1] = string.format('modifica %d (%s): %d tasti, %d righe (%+d), cambiate: %s', k, m.titolo, tasti, #risultato,
+      #risultato - #m.partenza, #cambiate > 12 and (table.concat(vim.list_slice(cambiate, 1, 12), ', ') .. '…') or table.concat(cambiate, ', '))
+    k = k + 1
+  end
+  return table.concat(righe, '\n'), resoconto
+end
+
 function M.pacchetto(dir, solo)
   local out = { ok = true, righe = {} }
   local function riga(stato, testo)
