@@ -59,6 +59,7 @@ function M.chiudi()
     vim.bo[s.buf].modified = false -- il file di lavoro non deve bloccare :qa
   end
   pcall(vim.api.nvim_del_augroup_by_name, 'dattilo_lezione')
+  ui.altezza_tip(nil)
   M.s = nil
 end
 
@@ -104,9 +105,16 @@ local function briefing(s)
 end
 
 ---------------------------------------------------------------- batti
--- Suggerimento della schermata Batti; `modo` è la prima lettera della modalità di Neovim.
-function M.tip_batti(s, modo)
-  local st = s.st
+-- Indice del blocco che contiene la riga r; su una riga vuota tra due blocchi vale quello dopo.
+function M.blocco_di(L, r)
+  local bl = L.batti.blocchi or {}
+  for i, b in ipairs(bl) do if r <= b.a then return i end end
+  return #bl > 0 and #bl or nil
+end
+
+-- Avviso su Vim, se ce n'è uno: nome (per il titolo), testo, tipo del bordo.
+local function avviso_batti(s, modo, r, righe)
+  local st, codice = s.st, s.L.batti.codice
   if s.frecce then
     if modo == 'i' then
       return 'FRECCE', 'Sei in INSERT: qui ogni tasto scrive, anche h j k l. Per spostarti premi ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i› per tornare a scrivere. Sulla stessa riga basta ‹Backspace›.', 'rosso'
@@ -121,12 +129,9 @@ function M.tip_batti(s, modo)
     local C = s.L.esecuzione and s.L.esecuzione.tipo == 'compila'
     return 'SALVA', (C and 'Salva e compila' or 'Salva ed esegui') .. ': scrivi ‹:w› e premi ‹Invio›. dattilo lancia ' .. strumento(s.L) .. (C and ' con i warning accesi.' or '.'), 'verde'
   end
-  local r = vim.api.nvim_win_get_cursor(0)[1]
-  local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
-  local codice = s.L.batti.codice
   local riga, t = righe[r] or '', codice[r] or ''
   if modo == 'i' and riga ~= t:sub(1, #riga) then
-    return 'ERRORE', 'Il rosso è un errore. ‹Backspace› e riscrivi: in C basta un carattere sbagliato per non compilare.', 'rosso'
+    return 'ERRORE', 'Il rosso è un errore: ‹Backspace› e riscrivi. Basta un carattere sbagliato perché ' .. strumento(s.L) .. ' non capisca.', 'rosso'
   end
   -- una riga sopra il cursore è rimasta a metà (di solito un Invio di troppo presto)
   for i = 1, r - 1 do
@@ -138,19 +143,58 @@ function M.tip_batti(s, modo)
     end
   end
   if modo ~= 'i' then
-    if not st.metriche.inizio then return 'TIP', 'Sei in NORMAL: qui i tasti sono comandi, non lettere. Premi ‹i› per entrare in INSERT e scrivere il codice in grigio.' end
-    return 'TIP', 'Sei in NORMAL: ‹h› ‹j› ‹k› ‹l› ti spostano, ‹i› torna a scrivere, ‹x› cancella il carattere sotto il cursore, ‹u› annulla.'
+    if not st.metriche.inizio then return 'NORMAL', 'Sei in NORMAL: qui i tasti sono comandi, non lettere. Premi ‹i› per entrare in INSERT e scrivere il codice in grigio.' end
+    return 'NORMAL', 'Sei in NORMAL: ‹h› ‹j› ‹k› ‹l› ti spostano, ‹i› torna a scrivere, ‹x› cancella il carattere sotto il cursore, ‹u› annulla.'
   end
-  local sugg = s.L.batti.suggerimenti[r]
-  if sugg then return 'TIP', sugg end
-  return 'TIP', 'Vai avanti a scrivere. Per spostarti: ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i›.'
+end
+
+local ETICHETTE_AVVISO = { FRECCE = 'Frecce', COMANDO = 'Comando', FATTO = 'Fatto', SALVA = 'Salva', ERRORE = 'Errore', NORMAL = 'Vim' }
+local COLORE_AVVISO = { rosso = 'DattiloRosso', verde = 'DattiloVerde' }
+
+-- Suggerimento della schermata Batti: titolo, sezioni (avviso, Riga, Blocco, Fin qui), tipo del bordo.
+-- `modo` è la prima lettera della modalità di Neovim.
+function M.tip_batti(s, modo)
+  local L = s.L
+  local codice, bl = L.batti.codice, L.batti.blocchi or {}
+  local r = math.min(vim.api.nvim_win_get_cursor(0)[1], math.max(1, #codice))
+  local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
+  local sezioni = {}
+  local nome, testo, tipo = avviso_batti(s, modo, r, righe)
+  if nome then
+    sezioni[#sezioni + 1] = { etichetta = ETICHETTE_AVVISO[nome] or ('Riga ' .. (nome:match('%d+') or '')), testo = testo, avviso = nome,
+      hl_etichetta = COLORE_AVVISO[tipo] or 'DattiloGiallo', priorita = 5 }
+  end
+  local sugg = L.batti.suggerimenti[r]
+  if sugg then sezioni[#sezioni + 1] = { etichetta = 'Riga', testo = sugg, priorita = 4 }
+  elseif codice[r] and not codice[r]:match('%S') then sezioni[#sezioni + 1] = { etichetta = 'Riga', testo = 'Riga vuota: separa due parti del codice. ‹Invio› e vai avanti.', priorita = 4 } end
+  local bi = M.blocco_di(L, r)
+  local titolo
+  if bi then
+    local b = bl[bi]
+    titolo = 'RIGA ' .. r .. ' · blocco ' .. bi .. ' di ' .. #bl .. ': ' .. b.titolo
+    sezioni[#sezioni + 1] = { etichetta = 'Blocco', testo = (b.da == b.a and ('Riga ' .. b.da) or ('Righe ' .. b.da .. '-' .. b.a)) .. '. ' .. (b.cosa or b.titolo), priorita = 2 }
+    local catena = {}
+    for i, x in ipairs(bl) do
+      local fatto = true
+      for k = x.da, x.a do if righe[k] ~= codice[k] then fatto = false break end end
+      catena[#catena + 1] = (i == bi and '▸ ' or fatto and '✓ ' or '· ') .. x.titolo
+    end
+    sezioni[#sezioni + 1] = { etichetta = 'Fin qui', testo = table.concat(catena, '  ') .. (b.quadro and ('\n' .. b.quadro) or ''), priorita = 3 }
+  else
+    titolo = 'RIGA ' .. r .. ' di ' .. #codice
+    sezioni[#sezioni + 1] = { etichetta = 'Fin qui', testo = 'Riga ' .. r .. ' di ' .. #codice .. '. ' .. (L.titolo or ''), priorita = 1 }
+  end
+  if not nome and not sugg then
+    sezioni[#sezioni + 1] = { etichetta = 'Vim', testo = 'Per spostarti: ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i›.', hl_etichetta = 'DattiloMuto', priorita = 0 }
+  end
+  return titolo, sezioni, tipo
 end
 
 local function tip(s)
   if not M.s or M.s ~= s then return end
   if s.passo == 'batti' then
     if s.st then ui.tip(M.tip_batti(s, vim.api.nvim_get_mode().mode:sub(1, 1))) end
-  elseif s.passo == 'modifica' and s.e then ui.tip(esercizio.testo_tip(s.e))
+  elseif s.passo == 'modifica' and s.e then ui.tip(esercizio.sezioni_tip(s.e))
   elseif s.passo == 'rompi' then
     local modo = vim.api.nvim_get_mode().mode:sub(1, 1)
     local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
@@ -237,6 +281,7 @@ function M.batti(s)
   schermo.mostra(s.buf, 'editor')
   pcall(vim.treesitter.start, s.buf, L.linguaggio or 'c')
   s.frecce = false
+  ui.altezza_tip(vim.o.lines >= 34 and 8 or 6)
   s.st = batti.avvia(s.buf, L.batti.codice, {
     su_cambio = function() tip(s) end,
     su_finito = function() tip(s) vim.cmd('redrawstatus') end,

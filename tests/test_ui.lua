@@ -61,4 +61,46 @@ T['la finestra del suggerimento non tiene il fuoco'] = function()
   vim.wait(50, function() return vim.api.nvim_get_current_win() ~= tip end)
   vero(vim.api.nvim_get_current_win() ~= tip)
 end
+T['riquadro a sezioni: etichette in colonna e testo che va a capo sotto di sé'] = function()
+  local righe = ui.riquadro('RIGA 2', {
+    { etichetta = 'Riga', testo = 'uno due tre quattro cinque sei sette otto', priorita = 3 },
+    { etichetta = 'Blocco', testo = 'blocco', priorita = 2 },
+  }, 40, 4)
+  uguale(#righe, 6)
+  for _, r in ipairs(righe) do uguale(dw(r), 40, r) end
+  vero(righe[2]:find('^│ Riga     uno') ~= nil, righe[2])
+  vero(righe[3]:find('^│          %S') ~= nil, righe[3])
+  vero(righe[4]:find('^│ Blocco   blocco') ~= nil, righe[4])
+end
+T['riquadro a sezioni: con poco spazio si accorcia la meno importante, con …'] = function()
+  local lungo = string.rep('parola ', 30)
+  local righe = ui.riquadro('X', {
+    { testo = 'avviso', priorita = 5 },
+    { etichetta = 'Riga', testo = 'riga corta', priorita = 4 },
+    { etichetta = 'Blocco', testo = lungo, priorita = 1 },
+    { etichetta = 'Fin qui', testo = lungo, priorita = 3 },
+  }, 50, 5)
+  uguale(#righe, 7)
+  for _, r in ipairs(righe) do uguale(dw(r), 50, r) end
+  vero(righe[2]:find('avviso', 1, true), righe[2])
+  vero(righe[4]:find('Blocco', 1, true) and righe[4]:find('…', 1, true), righe[4])
+  vero(righe[5]:find('Fin qui', 1, true), righe[5])
+  vero(righe[6]:find('…', 1, true), righe[6])
+end
+T['riquadro a sezioni: più sezioni che righe, restano le più importanti'] = function()
+  local righe = ui.riquadro('X', {
+    { etichetta = 'A', testo = 'a', priorita = 1 }, { etichetta = 'B', testo = 'b', priorita = 3 }, { etichetta = 'C', testo = 'c', priorita = 2 },
+  }, 30, 2)
+  vero(righe[2]:find('B', 1, true) and righe[3]:find('C', 1, true), vim.inspect(righe))
+end
+T['altezza del riquadro: 8 righe in lezione, poi di nuovo 3'] = function()
+  vim.o.columns = 80
+  ui.tip('TIP', 'ciao', nil)
+  ui.altezza_tip(8)
+  uguale(vim.api.nvim_win_get_height(ui.finestra_tip()), 10)
+  local buf = vim.api.nvim_win_get_buf(ui.finestra_tip())
+  uguale(#vim.api.nvim_buf_get_lines(buf, 0, -1, false), 10)
+  ui.altezza_tip(nil)
+  uguale(vim.api.nvim_win_get_height(ui.finestra_tip()), 5)
+end
 return T

@@ -129,8 +129,9 @@ T['testi giusti per i pacchetti non C'] = function()
   local L = formato.lezione(LEZ:format('', '', ''), '01.md', 1)
   L.esecuzione, L.linguaggio, L.pacchetto = { tipo = 'comando', comando = { 'node', '{file}' } }, 'javascript', 'prova'
   local s = { L = L, st = { finito = true, metriche = require('dattilo.metriche').nuova() }, buf = 0 }
-  local _, testo = require('dattilo.lezione').tip_batti(s, 'n')
-  vero(not testo:find('cc', 1, true), testo)
+  local _, sez = require('dattilo.lezione').tip_batti(s, 'n')
+  local testo = table.concat(vim.tbl_map(function(x) return x.testo end, sez), ' ')
+  vero(not testo:find(' cc', 1, true) and not testo:find('gcc', 1, true), testo)
 end
 T['esportare un pacchetto rotto dalla schermata non va in errore'] = function()
   local xdg = xdg_nuovo()

@@ -80,4 +80,14 @@ T['dopo il doppio del par il suggerimento mostra la soluzione'] = function()
   vero(testo:find('Soluzione: ‹f(› ‹ci(› ‹int x, int y› ‹Esc›', 1, true), testo)
   vero(testo:find('Tasti: 37 · par 18', 1, true), testo)
 end
+T['lezioni: il suggerimento a sezioni ha consegna, aiuto, perché e tasti'] = function()
+  local ex = vim.tbl_extend('force', dojo.ESERCIZI[3], { motivo = 'Così la firma è completa.' })
+  local titolo, sez = esercizio.sezioni_tip({ o = ex, tasti = 2 })
+  uguale(titolo, 'DENTRO LE PARENTESI')
+  local et = vim.tbl_map(function(x) return x.etichetta end, sez)
+  uguale(et, { 'Consegna', 'Aiuto', 'Perché', 'Tasti' })
+  uguale(sez[3].testo, 'Così la firma è completa.')
+  local _, sez2 = esercizio.sezioni_tip({ o = ex, tasti = 37 })
+  uguale(sez2[2].etichetta, 'Soluzione')
+end
 return T

@@ -35,6 +35,23 @@ function M.testo_tip(e)
   return (o.titolo or 'MODIFICA'):upper(), testo .. '\nTasti: ' .. e.tasti .. ' · par ' .. o.par .. ' · ‹:e!› ricomincia'
 end
 
+-- Lo stesso suggerimento a sezioni, per il riquadro alto delle lezioni: c'è anche il perché.
+function M.sezioni_tip(e)
+  local o = e.o
+  local out = {}
+  local insert = vim.api.nvim_get_mode().mode:sub(1, 1) == 'i'
+  if insert then out[#out + 1] = { etichetta = 'Vim', testo = 'Sei in INSERT: quando hai finito di scrivere, ‹Esc›.', hl_etichetta = 'DattiloGiallo', priorita = 5 } end
+  out[#out + 1] = { etichetta = 'Consegna', testo = o.consegna, priorita = 6 }
+  if e.tasti > 2 * o.par then
+    out[#out + 1] = { etichetta = 'Soluzione', testo = table.concat(vim.tbl_map(function(k) return '‹' .. k .. '›' end, o.mostra), ' '), hl_etichetta = 'DattiloGiallo', priorita = 4 }
+  elseif not insert then
+    out[#out + 1] = { etichetta = 'Aiuto', testo = o.aiuto, priorita = 4 }
+  end
+  if o.motivo then out[#out + 1] = { etichetta = 'Perché', testo = o.motivo, priorita = 3 } end
+  out[#out + 1] = { etichetta = 'Tasti', testo = e.tasti .. ' · par ' .. o.par .. ' · ‹:e!› ricomincia', hl_etichetta = 'DattiloMuto', priorita = 2 }
+  return (o.titolo or 'MODIFICA'):upper(), out
+end
+
 local function segni(e)
   if not vim.api.nvim_buf_is_valid(e.buf) then return end
   local o = e.o
