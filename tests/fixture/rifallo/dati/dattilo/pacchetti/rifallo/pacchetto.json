@@ -1,0 +1,8 @@
+{
+  "id": "rifallo",
+  "titolo": "Rifallo tu · prove",
+  "versione": "0.1.0",
+  "linguaggio": "javascript",
+  "richiede": [],
+  "esecuzione": { "tipo": "controllo", "comando": ["node", "--check", "{file}"] }
+}
