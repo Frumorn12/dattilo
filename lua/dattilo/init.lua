@@ -53,7 +53,8 @@ function M.avvia(opts)
   vim.cmd('filetype plugin indent off')
   M.comandi()
   M.abbreviazioni()
-  require('dattilo.home').apri()
+  if vim.env.DATTILO_VIVO and vim.env.DATTILO_VIVO ~= '' then require('dattilo.vivo').avvia(vim.env.DATTILO_VIVO)
+  else require('dattilo.home').apri() end
 end
 
 return M

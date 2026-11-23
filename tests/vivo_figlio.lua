@@ -81,6 +81,17 @@ end
 
 function F:messaggi() return vim.rpcrequest(self.canale, 'nvim_exec2', 'messages', { output = true }).output end
 
+-- L'ultimo riquadro della guida: { titolo, sezioni = { [etichetta] = testo }, tipo }; nil se non c'è ancora.
+function F:riquadro()
+  local r = self:lua([[
+    local ok, g = pcall(require, 'dattilo.guida')
+    return ok and g.ultimo() or nil]])
+  if r == nil or r == vim.NIL then return nil end
+  local sezioni = {}
+  for _, sz in ipairs(r.sezioni) do sezioni[sz.etichetta] = sz.testo end
+  return { titolo = r.titolo, sezioni = sezioni, tipo = r.tipo }
+end
+
 function F:chiudi()
   if self.chiuso then return end
   self.chiuso = true

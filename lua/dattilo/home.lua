@@ -115,6 +115,7 @@ local function disegna(buf, lista, percorsi)
 end
 
 function M.apri()
+  if require('dattilo.vivo').attivo() then return require('dattilo.vivo').elenco() end
   chiudi_altro()
   stato.schermo, stato.titolo, stato.destra, stato.file, stato.metriche = 'home', 'Home', oggi(), 'home', nil
   vim.cmd('redrawtabline')

@@ -10,6 +10,7 @@ local stato = require('dattilo.stato')
 local ui = require('dattilo.ui')
 
 local M = {}
+M.guida = nil -- la guida accesa (guida.lua) o nil, cioè il dattilo di sempre
 local PASSI = { briefing = 1, batti = 2, modifica = 3, rompi = 4, esegui = 4, spiegazione = 5, fine = 6 }
 local NOMI = { briefing = 'briefing', batti = 'batti', modifica = 'modifica', rompi = 'rompi', esegui = 'esegui', spiegazione = 'spiegazione', fine = 'riepilogo' }
 local ns = vim.api.nvim_create_namespace('dattilo_lezione')
@@ -19,7 +20,10 @@ local function tempo(ms) local s = math.floor(ms / 1000 + 0.5) return string.for
 local function perc(p) local s = string.format('%.1f', p):gsub('%.0$', ''):gsub('%.', ',') return s .. '%' end
 local function stelle(n) return string.rep('★', n) .. string.rep('☆', 3 - n) end
 local function secondi(mmss) local m, s = mmss:match('(%d+):(%d+)') return tonumber(m) * 60 + tonumber(s) end
-local function eco(chunks) vim.api.nvim_echo(chunks, true, {}) end
+local function eco(chunks)
+  if M.guida then return M.guida.eco(chunks) end
+  vim.api.nvim_echo(chunks, true, {})
+end
 
 local function barre(s)
   local p = PASSI[s.passo]
@@ -102,6 +106,7 @@ local function briefing(s)
   mappa(buf, { '<CR>', 'l' }, function() if M.s == s then M.batti(s) end end)
   mappa(buf, 'v', function() apri_video(s) end)
   mappa(buf, 'q', function() require('dattilo.home').apri() end)
+  if M.guida then M.guida.schermata(s) end
 end
 
 ---------------------------------------------------------------- batti
@@ -193,6 +198,7 @@ end
 
 local function tip(s)
   if not M.s or M.s ~= s then return end
+  if M.guida then return M.guida.tip(s) end
   if s.passo == 'batti' then
     if s.st then ui.tip(M.tip_batti(s, vim.api.nvim_get_mode().mode:sub(1, 1))) end
   elseif s.passo == 'modifica' and s.e then ui.tip(esercizio.sezioni_tip(s.e))
@@ -314,6 +320,7 @@ function M.batti(s)
     if M.s == s and s.passo == 'batti' and s.st.metriche.inizio and not s.st.finito then vim.cmd('redrawstatus') end
   end))
   tip(s)
+  if M.guida then M.guida.schermata(s) end
 end
 
 ---------------------------------------------------------------- modifica

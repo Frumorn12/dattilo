@@ -173,6 +173,12 @@ local function comando_riempi(args)
   return 0
 end
 
+-- dattilo vivo --dove: la mod chiede se c'è, e dove sta
+local function comando_vivo_dove()
+  scrivi(vim.json.encode({ vivo = 1, radice = radice }))
+  return 0
+end
+
 function M.main(args)
   local c = args[1]
   if c == 'importa' then return comando_importa(args)
@@ -180,7 +186,8 @@ function M.main(args)
   elseif c == 'pacchetti' then return comando_pacchetti()
   elseif c == 'nuovo' then return comando_nuovo(args)
   elseif c == 'controlla' then return comando_controlla(args)
-  elseif c == 'riempi' then return comando_riempi(args) end
+  elseif c == 'riempi' then return comando_riempi(args)
+  elseif c == 'vivo-dove' then return comando_vivo_dove() end
   scrivi('uso: dattilo [importa <file> | esporta <id> [file] | pacchetti | nuovo <cartella> | controlla [--tip] <cartella> [lezione] | riempi <lezione.md>]')
   return c and 1 or 0
 end

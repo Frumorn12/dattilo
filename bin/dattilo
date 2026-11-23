@@ -19,5 +19,13 @@ case "${1:-}" in
     cli importa "$file" --si ;;
   esporta|pacchetti|nuovo|controlla|riempi) cli "$@" ;;
   aiuto|-h|--help) cli aiuto; echo "Senza argomenti: apre l'app." ;;
+  vivo)
+    case "${2:-}" in
+      --dove) cli vivo-dove; exit $? ;;
+    esac
+    [ -d "${2:-}" ] || { echo "uso: dattilo vivo <cartella> [opzioni di nvim]" >&2; exit 1; }
+    export XDG_DATA_HOME="$2/dati" DATTILO_VIVO="$2" LANGUAGE=it
+    shift 2
+    exec nvim --clean -u "$DIR/init.lua" "$@" ;;
   *) exec nvim --clean -u "$DIR/init.lua" "$@" ;;
 esac
