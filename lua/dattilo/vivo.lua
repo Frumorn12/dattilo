@@ -68,6 +68,8 @@ function M.elenco()
   schermo.mostra(buf, 'testo')
   vim.api.nvim_win_set_cursor(0, { math.min(2, #righe), 0 })
   vim.keymap.set('n', '<CR>', function()
+    -- l'elenco rimasto in giro (‹Ctrl-o›) non apre una lezione mentre se ne scrive un'altra
+    if stato.schermo ~= 'home' then return end
     local L = lezioni[vim.api.nvim_win_get_cursor(0)[1] - 1]
     if L then M.apri(L.id) end
   end, { buffer = buf, nowait = true, silent = true })

@@ -104,7 +104,9 @@ local function briefing(s)
   schermo.scrivi(buf, r)
   schermo.mostra(buf, 'testo')
   vim.api.nvim_win_set_cursor(0, { 2, 0 })
-  mappa(buf, { '<CR>', 'l' }, function() if M.s == s then M.batti(s) end end)
+  -- con la guida il buffer del briefing può restare in giro (‹Esc› ‹Ctrl-o› ci riporta): ‹Invio› e ‹l› non
+  -- devono rifare Batti mentre si scrive, perché svuoterebbero il testo
+  mappa(buf, { '<CR>', 'l' }, function() if M.s == s and (not M.guida or s.passo == 'briefing') then M.batti(s) end end)
   mappa(buf, 'v', function() apri_video(s) end)
   mappa(buf, 'q', function() require('dattilo.home').apri() end)
   if M.guida then M.guida.schermata(s) end
@@ -466,7 +468,7 @@ function M.spiegazione(s)
   vim.wo.number = true
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
   vim.fn.winrestview({ topfill = #testa })
-  mappa(buf, { '<CR>', 'l' }, function() if M.s == s then M.fine(s) end end)
+  mappa(buf, { '<CR>', 'l' }, function() if M.s == s and (not M.guida or s.passo == 'spiegazione') then M.fine(s) end end)
   mappa(buf, 'v', function() apri_video(s, sp.momenti[1] and sp.momenti[1][1]) end)
   mappa(buf, 'q', function() require('dattilo.home').apri() end)
   if M.guida then M.guida.schermata(s) end

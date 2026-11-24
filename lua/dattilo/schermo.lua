@@ -3,6 +3,7 @@ local M = {}
 local ns = vim.api.nvim_create_namespace('dattilo_schermo')
 local buffers = {}
 M.principale = nil
+M.mostrato = nil -- l'ultimo buffer messo nella finestra principale con `mostra`: quello che ci deve stare
 
 function M.finestra()
   if M.principale and vim.api.nvim_win_is_valid(M.principale) then return M.principale end
@@ -67,6 +68,7 @@ function M.mostra(buf, tipo)
   local win = M.finestra()
   vim.api.nvim_set_current_win(win)
   vim.api.nvim_win_set_buf(win, buf)
+  M.mostrato = buf
   local wo = vim.wo[win]
   local ed = tipo == 'editor'
   wo.number, wo.relativenumber, wo.cursorline = ed, ed, ed

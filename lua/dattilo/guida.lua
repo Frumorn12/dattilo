@@ -33,35 +33,87 @@ local function lezione() return require('dattilo.lezione') end
 local SINONIMI_Q = { q = true, ['q!'] = true, wq = true, x = true } -- tutti DattiloEsci (init.lua)
 local COMANDO_DI = { salta = 'DattiloSalta', ultima = 'DattiloUltima', elenco = 'DattiloElenco', ['e!'] = 'DattiloRicomincia' }
 local SELEZIONE = { v = true, V = true, ['\22'] = true, s = true, S = true, ['\19'] = true }
+-- «Comandi» di un posto sbagliato che ha una sola uscita (la sezione normale offrirebbe cose che lì non valgono)
+local COMANDI_POSTO = { altro_buffer = 'comandi_altro', altro_buffer_i = 'comandi_altro', terminale = 'comandi_altro' }
 
--- I comandi che valgono qui: quelli scritti in «Comandi» (‹:nome›) che esistono davvero adesso
--- (:salta, :ultima ed :elenco arrivano col compito 8). :q vale sempre.
-local function comandi_validi(testo_comandi)
+-- La finestra `win` è «in più» (3.4, riga 12): non è la principale della lezione, né il riquadro,
+-- né l'OBIETTIVO, né una galleggiante.
+local function e_in_piu(win)
+  local principale = require('dattilo.schermo').principale
+  if not principale or not vim.api.nvim_win_is_valid(principale) then return false end
+  if not vim.api.nvim_win_is_valid(win) or win == principale then return false end
+  if vim.api.nvim_win_get_config(win).relative ~= '' then return false end
+  if ui.tip_aperto() and win == ui.finestra_tip() then return false end
+  local s = lezione().s
+  if s and s.e and s.e.fin == win then return false end
+  return true
+end
+
+-- Dove sta il cursore rispetto alla lezione: 'in_piu' (in una finestra in più), 'altro' (nella
+-- finestra della lezione, ma c'è un altro buffer: Ctrl-^, :e, :bn, un terminale…; il secondo valore
+-- è il buffer che ci dovrebbe essere), o nil. Il buffer giusto è l'ultimo messo da schermo.mostra:
+-- il codice in Batti, il testo della schermata altrove.
+local function posizione()
+  local schermo = require('dattilo.schermo')
+  local principale = schermo.principale
+  if not principale or not vim.api.nvim_win_is_valid(principale) then return nil end
+  local win = vim.api.nvim_get_current_win()
+  if e_in_piu(win) then return 'in_piu' end
+  local atteso = schermo.mostrato
+  if win == principale and atteso and vim.api.nvim_buf_is_valid(atteso)
+    and vim.api.nvim_win_get_buf(win) ~= atteso then
+    return 'altro', atteso
+  end
+  return nil
+end
+
+-- I comandi che valgono qui: quelli scritti in «Comandi» e in «Adesso» come ‹:nome› che esistono
+-- davvero adesso (:salta, :ultima ed :elenco arrivano col compito 8), e :q, che vale sempre. In un
+-- altro buffer vale :b e il numero del codice (è quello che dice la frase); in un altro buffer e in
+-- una finestra in più :w e :e! non servono (scriverebbero o rifarebbero il buffer sbagliato).
+local function comandi_validi(testo_comandi, pos, atteso)
   local v = { q = true }
   for nome in (testo_comandi or ''):gmatch('‹:([^›]+)›') do
     local cmd = COMANDO_DI[nome]
     if nome == 'w' or nome == 'q' or (cmd and vim.fn.exists(':' .. cmd) == 2) then v[nome] = true end
   end
+  if pos then v.w, v['e!'] = nil, nil end
+  if pos == 'altro' then v['b' .. atteso] = true end
   return v
+end
+
+-- Nella lezione c'è del testo scritto: lasciarla lo perde (la bozza arriva col compito 9), e la
+-- frase di :q lo dice prima dell'Invio.
+local function ha_scritto()
+  local s = lezione().s
+  if not s or not (s.passo == 'batti' or s.passo == 'modifica' or s.passo == 'rompi' or s.passo == 'esegui') then return false end
+  if not s.buf or not vim.api.nvim_buf_is_valid(s.buf) then return false end
+  for _, l in ipairs(vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)) do
+    if l ~= '' then return true end
+  end
+  return false
 end
 
 -- Cosa fa il comando noto `nome`, dove si è adesso (3.4, riga 3). La finestra in più (q_finestra)
 -- arriva col compito 6.
 local function spiega(nome)
   if SINONIMI_Q[nome] then
-    return require('dattilo.stato').schermo == 'home' and T.spiega_comando.q_esci or T.spiega_comando.q
+    if require('dattilo.stato').schermo == 'home' then return T.spiega_comando.q_esci end
+    return ha_scritto() and T.spiega_comando.q_scritto or T.spiega_comando.q
   end
+  if nome:match('^b%d+$') then return T.spiega_comando.b end
   return T.spiega_comando[nome]
 end
 
 local function posto_di(nome, ...)
   local titolo, testo = T.posto(nome, ...)
-  return { titolo = titolo, testo = testo }
+  local c = COMANDI_POSTO[nome]
+  return { titolo = titolo, testo = testo, comandi = c and T.f(c, ...) or nil }
 end
 
 -- La riga dei comandi (3.4, righe 2-4): vuota, un comando che vale qui, a metà di uno, o un altro.
-local function nella_riga_dei_comandi(riga, testo_comandi)
-  local validi = comandi_validi(testo_comandi)
+local function nella_riga_dei_comandi(riga, testo_comandi, pos, atteso)
+  local validi = comandi_validi(testo_comandi, pos, atteso)
   riga = vim.trim(riga)
   if riga == '' then return posto_di(validi.w and 'cmd_vuota' or 'cmd_vuota_testo') end
   if riga == 'w' and validi.w then return { titolo = T.posti.cmd_vuota.titolo, testo = T.cmd_w } end
@@ -84,31 +136,18 @@ local function nella_riga_dei_comandi(riga, testo_comandi)
   return posto_di('cmd_ignoto', riga)
 end
 
--- La finestra in più (3.4, riga 12): il cursore è in una finestra che non è quella della lezione
--- (schermo.principale), né il riquadro, né l'OBIETTIVO, né una galleggiante. Il cursore nella
--- finestra della lezione con un'altra aperta (riga 12b) arriva col compito 6.
-local function finestra_in_piu()
-  local win = vim.api.nvim_get_current_win()
-  local principale = require('dattilo.schermo').principale
-  if not principale or win == principale or not vim.api.nvim_win_is_valid(principale) then return nil end
-  if vim.api.nvim_win_get_config(win).relative ~= '' then return nil end
-  if ui.tip_aperto() and win == ui.finestra_tip() then return nil end
-  local s = lezione().s
-  if s and s.e and s.e.fin == win then return nil end
-  return posto_di(vim.bo.buftype == 'help' and 'aiuto' or 'divisa')
-end
-
 -- Il posto sbagliato in cui si è adesso, o nil. L'ordine conta: la finestra dei comandi, Ex (dove
 -- anche getcmdtype() dà ':'), la riga dei comandi, la registrazione (in NORMAL e mentre si
--- scrive; negli altri modi prima si esce da quelli), le frecce, il terminale, la finestra in più
--- (in NORMAL: in INSERT ‹Ctrl-w› cancellerebbe una parola), poi il modo. `testo_comandi` è la
--- sezione «Comandi» della schermata, che dice quali comandi valgono.
+-- scrive; negli altri modi prima si esce da quelli), le frecce, il terminale, la finestra in più o
+-- un altro buffer nella finestra della lezione, poi il modo. `testo_comandi` sono le sezioni
+-- «Comandi» e «Adesso» della schermata, che dicono quali comandi valgono.
 local function posto_per(modo, testo_comandi)
   modo = modo or vim.api.nvim_get_mode().mode
   if vim.fn.getcmdwintype() ~= '' then return posto_di('cmdwin') end
   if modo == 'cv' or modo == 'ce' then return posto_di('ex') end
+  local pos, atteso = posizione()
   local tipo = vim.fn.getcmdtype()
-  if tipo == ':' then return nella_riga_dei_comandi(vim.fn.getcmdline(), testo_comandi) end
+  if tipo == ':' then return nella_riga_dei_comandi(vim.fn.getcmdline(), testo_comandi, pos, atteso) end
   if tipo == '/' or tipo == '?' then return posto_di('ricerca') end
   if tipo ~= '' then return posto_di('sconosciuto', modo) end
   local m1 = modo:sub(1, 1)
@@ -118,14 +157,26 @@ local function posto_per(modo, testo_comandi)
     if m1 == 'i' or m1 == 'R' then return posto_di('registra_i', reg) end
   end
   local s = lezione().s
-  if s and s.passo == 'batti' and s.frecce then
+  -- le frecce valgono solo nel codice: la mappa è di quel buffer
+  if s and s.passo == 'batti' and s.frecce and vim.api.nvim_get_current_buf() == s.buf then
     if m1 == 'i' then return posto_di('frecce') end
     if modo == 'n' then return posto_di('frecce_n') end
   end
-  if modo == 'nt' or modo == 'ntT' then return posto_di('terminale') end
-  if modo == 'n' then
-    local p = finestra_in_piu()
-    if p then return p end
+  if modo == 'nt' or modo == 'ntT' then
+    -- il terminale in una finestra in più si chiude come ogni finestra in più; nella finestra della
+    -- lezione il ritorno è :b e il numero del codice (‹Ctrl-^› con due terminali rimbalza)
+    if pos == 'in_piu' then return posto_di('divisa') end
+    if pos == 'altro' then return posto_di('terminale', atteso) end
+    return posto_di('sconosciuto', modo)
+  end
+  -- fuori dal codice della lezione: una finestra in più (3.4, riga 12), o un altro buffer nella
+  -- finestra della lezione. In INSERT ‹Ctrl-w› cancellerebbe una parola: la frase comincia da ‹Esc›.
+  if pos and (modo == 'n' or m1 == 'i') then
+    if pos == 'in_piu' then
+      if m1 == 'i' then return posto_di('divisa_i') end
+      return posto_di(vim.bo.buftype == 'help' and 'aiuto' or 'divisa')
+    end
+    return posto_di(m1 == 'i' and 'altro_buffer_i' or 'altro_buffer', atteso)
   end
   -- NORMAL e INSERT (anche col completamento, ic e ix) non sono posti sbagliati; «Premi INVIO»
   -- (r…) e un comando esterno (!) non si possono ridisegnare
@@ -140,11 +191,11 @@ end
 -- Il posto sbagliato in cui si è adesso (3.4): nil o { titolo, testo }. `modo` (facoltativo, per
 -- le prove) prende il posto di nvim_get_mode().
 function M.posto(modo)
-  local cmd = nil
+  local cmd = {}
   for _, sz in ipairs(base and base.sezioni or {}) do
-    if sz.etichetta == 'Comandi' then cmd = sz.testo end
+    if sz.etichetta == 'Comandi' or sz.etichetta == 'Adesso' then cmd[#cmd + 1] = sz.testo end
   end
-  return posto_per(modo, cmd)
+  return posto_per(modo, table.concat(cmd, ' '))
 end
 
 -- Una parola più larga della riga (un nome lunghissimo nell'errore di node, un percorso) uscirebbe
@@ -222,7 +273,9 @@ local function disegna(titolo, sezioni, tipo)
   if not p then return disegna_riquadro(titolo, sezioni, tipo) end
   local sez = {}
   for i, sz in ipairs(sezioni) do
-    sez[i] = sz.etichetta == 'Adesso' and vim.tbl_extend('force', sz, { testo = p.testo }) or sz
+    if sz.etichetta == 'Adesso' then sez[i] = vim.tbl_extend('force', sz, { testo = p.testo })
+    elseif sz.etichetta == 'Comandi' and p.comandi then sez[i] = vim.tbl_extend('force', sz, { testo = p.comandi })
+    else sez[i] = sz end
   end
   disegna_riquadro(p.titolo, sez, 'rosso')
 end
@@ -323,9 +376,12 @@ function M.accendi(fornitore)
     { expr = true, desc = 'dattilo: Ctrl-z non mette in pausa (G9)' })
   local g = vim.api.nvim_create_augroup('dattilo_guida', { clear = true })
   -- i posti sbagliati (3.4): ogni evento che può portare dentro o fuori da uno ricalcola il riquadro
-  -- (WinNew, WinEnter e WinClosed per la finestra in più, riga 12: aprirla non cambia il modo)
+  -- (WinNew, WinEnter e WinClosed per la finestra in più, riga 12: aprirla non cambia il modo;
+  -- BufEnter e BufWinEnter per un altro buffer nella finestra della lezione: ‹Ctrl-^›, :e, :bn,
+  -- ‹Ctrl-o› non cambiano né il modo né il cursore)
   vim.api.nvim_create_autocmd({ 'ModeChanged', 'RecordingEnter', 'RecordingLeave', 'CmdlineEnter', 'CmdlineChanged',
-    'CmdlineLeave', 'CmdwinEnter', 'CmdwinLeave', 'TextChanged', 'WinNew', 'WinEnter', 'WinClosed' },
+    'CmdlineLeave', 'CmdwinEnter', 'CmdwinLeave', 'TextChanged', 'WinNew', 'WinEnter', 'WinClosed',
+    'BufEnter', 'BufWinEnter' },
     { group = g, callback = function() ricalcola() end })
   -- la finestra ha cambiato misura: le righe di ogni sezione vanno ricontate
   vim.api.nvim_create_autocmd('VimResized', { group = g, callback = proteggi(function()

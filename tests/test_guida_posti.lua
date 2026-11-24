@@ -95,7 +95,7 @@ end
 
 -- Il primo tasto di cmd_noto esegue il comando scritto (qui :q lascia la lezione, prova sotto);
 -- chi l'ha scritto per sbaglio ha ‹Esc›, il secondo tasto della frase.
-T['comando noto'] = riga({ entra = '<Esc>:q', posto = atteso('cmd_noto', 'q', TT.spiega_comando.q), esci = { '<Esc>' }, modo_dopo = 'n' })
+T['comando noto'] = riga({ entra = '<Esc>:q', posto = atteso('cmd_noto', 'q', TT.spiega_comando.q_scritto), esci = { '<Esc>' }, modo_dopo = 'n' })
 
 T['comando ignoto'] = riga({ entra = '<Esc>:ls', posto = atteso('cmd_ignoto', 'ls'), modo_dopo = 'n' })
 
@@ -211,7 +211,7 @@ T['comando noto: Invio fa quello che la frase dice'] = function()
   con({}, function(F)
     in_batti(F, 'n')
     F:input(':q')
-    nel_posto(F, atteso('cmd_noto', 'q', TT.spiega_comando.q))
+    nel_posto(F, atteso('cmd_noto', 'q', TT.spiega_comando.q_scritto))
     F:premi_primo()
     vero(F:aspetta(function() return F:lua('return require("dattilo.stato").schermo') == 'home' end))
     uguale(F:lua('return require("dattilo.lezione").s'), vim.NIL)
@@ -230,8 +230,12 @@ T['un comando che non c è ancora non si promette'] = function()
     F:input(':salta')
     nel_posto(F, atteso('cmd_ignoto', 'salta'))
     F:input('<Esc>')
-    -- quando c'è, è un comando noto; a metà, la frase dice le lettere che mancano
-    F:lua('vim.api.nvim_create_user_command("DattiloSalta", function() end, {})')
+    -- quando c'è (il compito 8 lo crea e lo scrive in «Comandi»), è un comando noto; a metà, la frase
+    -- dice le lettere che mancano
+    F:lua([[
+      local T = require('dattilo.guida_testi')
+      T.comandi_batti = T.comandi_batti .. ' · ‹:salta› ‹Invio›: passi alla prossima'
+      vim.api.nvim_create_user_command('DattiloSalta', function() end, {})]])
     F:input(':sa')
     nel_posto(F, atteso('cmd_parziale', 'sa', TT.f('cmd_finisci', '‹l› ‹t› ‹a›', 'salta', TT.spiega_comando.salta)))
     F:premi_primo()
@@ -306,7 +310,7 @@ T['terminale: seguendo la guida si torna al codice'] = function()
     uguale(F:modo(), 't')
     nel_posto(F, atteso('sconosciuto', 't'))
     local visti = F:segui(function() return fuori(F) end, 4)
-    uguale(visti, { select(2, TT.posto('sconosciuto', 't')), TT.posti.terminale.testo })
+    uguale(visti, { select(2, TT.posto('sconosciuto', 't')), (select(2, TT.posto('terminale', F:lua('return require("dattilo.lezione").s.buf')))) })
     uguale(F:modo(), 'n')
     uguale(F:lua('return vim.api.nvim_get_current_buf() == require("dattilo.lezione").s.buf'), true)
     uguale(F:righe(), { 'func' })
@@ -364,6 +368,238 @@ T['spegni toglie Ctrl-z e gli autocomandi'] = function()
     F:lua('require("dattilo.vivo").ferma()')
     uguale(F:lua('return { vim.fn.maparg("<C-z>", "n"), vim.fn.maparg("<C-z>", "i"), vim.fn.maparg("<C-z>", "v"), vim.fn.maparg("<C-z>", "o") }'), { '', '', '', '' })
     uguale(F:lua('return vim.fn.exists("#dattilo_guida")'), 0)
+  end)
+end
+
+---------------------------------------------------------------- giro di correzione 1 (revisione del compito 5)
+
+local function buf_lezione(F) return F:lua('return require("dattilo.lezione").s.buf') end
+local function buf_corrente(F) return F:lua('return vim.api.nvim_get_current_buf()') end
+local function righe_lezione(F) return F:lua('local s = require("dattilo.lezione").s return vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)') end
+
+-- Rilievo 1: nella finestra della lezione c'è un altro buffer. Ci si arriva in tanti modi; la
+-- guida se ne accorge, il riquadro è rosso, «Comandi» offre solo la strada per tornare, e seguendo
+-- la guida si è di nuovo nel codice, col testo intatto.
+local function altro_buffer(nome, entra, da)
+  T[nome] = function()
+    con({}, function(F)
+      in_batti(F, 'n')
+      F:input(entra)
+      local n = buf_lezione(F)
+      vero(buf_corrente(F) ~= n, 'non si è arrivati in un altro buffer')
+      nel_posto(F, atteso('altro_buffer', n), nome)
+      uguale(F:riquadro().sezioni.Comandi, TT.f('comandi_altro', n))
+      local visti = F:segui(function() return fuori(F) end, 4)
+      uguale(buf_corrente(F), n, vim.inspect(visti))
+      uguale(righe_lezione(F), { 'func' })
+      uguale(F:modo(), 'n')
+      senza_errori(F, 'uscendo')
+      -- dopo il ritorno si continua a scrivere sul codice
+      F:input('A')
+      uguale(F:adesso(), TT.batti_scrivi)
+      vero(F:riquadro().tipo ~= 'rosso', vim.inspect(F:riquadro()))
+    end)
+  end
+end
+
+altro_buffer('un altro buffer con Ctrl-^', '<C-^>')
+altro_buffer('un altro buffer con :enew', ':enew<CR>')
+altro_buffer('un altro buffer con :bn', ':bn<CR>')
+altro_buffer('un altro buffer con :e di un file', ':e altro.txt<CR>')
+altro_buffer('un altro buffer con Ctrl-o (il salto torna al briefing)', '<C-o>')
+
+-- Anche fuori da Batti il buffer giusto è quello della schermata (briefing, elenco).
+T['un altro buffer anche nel briefing e nell elenco: la guida riporta al testo'] = function()
+  con({}, function(F)
+    F:aspetta(function() local r = F:riquadro() return r ~= nil and r.titolo:find('^COMINCIA') ~= nil end)
+    local n = F:lua('return require("dattilo.schermo").mostrato')
+    F:input(':enew<CR>')
+    nel_posto(F, atteso('altro_buffer', n))
+    F:segui(function() return fuori(F) end, 3)
+    uguale(buf_corrente(F), n)
+    uguale(F:adesso(), TT.briefing)
+    -- nell'elenco
+    F:input('q')
+    vero(F:aspetta(function() return F:lua('return require("dattilo.stato").schermo') == 'home' end))
+    n = F:lua('return require("dattilo.schermo").mostrato')
+    F:input(':enew<CR>')
+    nel_posto(F, atteso('altro_buffer', n))
+    F:segui(function() return fuori(F) end, 3)
+    uguale(buf_corrente(F), n)
+    uguale(F:adesso(), TT.elenco)
+  end)
+end
+
+-- Nel briefing rimasto indietro ‹Invio› e ‹l› non devono rifare Batti: cancellerebbero il testo.
+T['il briefing rimasto indietro non ricomincia Batti: il testo resta'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    F:input('<C-o>')
+    uguale(F:lua('return vim.api.nvim_buf_get_name(0)'), 'dattilo://briefing')
+    nel_posto(F, atteso('altro_buffer', buf_lezione(F)))
+    F:input('<CR>')
+    F:input('l')
+    uguale(F:lua('return require("dattilo.lezione").s.passo'), 'batti')
+    uguale(righe_lezione(F), { 'func' })
+    F:segui(function() return fuori(F) end, 4)
+    uguale(F:righe(), { 'func' })
+  end)
+end
+
+-- Scrivendo in un altro buffer ‹Esc› viene prima (in INSERT ‹:› è una lettera).
+T['scrivendo in un altro buffer: prima Esc, poi il comando che riporta al codice'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    F:input('<C-^>i')
+    uguale(F:modo(), 'i')
+    local n = buf_lezione(F)
+    nel_posto(F, atteso('altro_buffer_i', n))
+    local visti = F:segui(function() return fuori(F) end, 4)
+    uguale(visti, { select(2, TT.posto('altro_buffer_i', n)), select(2, TT.posto('altro_buffer', n)) })
+    uguale(buf_corrente(F), n)
+    uguale(righe_lezione(F), { 'func' })
+  end)
+end
+
+-- Nel riquadro, «Comandi» in un altro buffer non offre ‹:w›, che lì scriverebbe sul file sbagliato.
+T['in un altro buffer la riga dei comandi riconosce quello che la frase dice'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    F:input('<C-^>')
+    local n = buf_lezione(F)
+    local nome = 'b' .. n
+    F:input(':')
+    nel_posto(F, atteso('cmd_vuota_testo'))
+    F:input('b')
+    nel_posto(F, atteso('cmd_parziale', 'b', TT.f('cmd_finisci', '‹' .. tostring(n) .. '›', nome, TT.spiega_comando.b)))
+    F:input(tostring(n))
+    nel_posto(F, atteso('cmd_noto', nome, TT.spiega_comando.b))
+    F:premi_primo()
+    uguale(buf_corrente(F), n)
+  end)
+end
+
+-- Con due terminali ‹Ctrl-^› rimbalzava fra i due: la frase ora porta al codice con :b e il numero.
+T['due terminali: la guida riporta al codice, senza rimbalzare'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    local n = buf_lezione(F)
+    F:input(':terminal<CR>')
+    F:input('<C-\\><C-n>')
+    F:input(':terminal<CR>')
+    F:input('<C-\\><C-n>')
+    uguale(F:modo(), 'nt')
+    nel_posto(F, atteso('terminale', n))
+    local visti = F:segui(function() return fuori(F) end, 4)
+    vero(not table.concat(visti, ' '):find('Ctrl-^', 1, true), vim.inspect(visti))
+    uguale(buf_corrente(F), n)
+    uguale(righe_lezione(F), { 'func' })
+    uguale(F:modo(), 'n')
+  end)
+end
+
+-- Scrivendo in una finestra in più (‹Ctrl-w› ‹n› poi ‹i›) la frase non è quella di Batti: ‹Esc› viene
+-- prima, perché in INSERT ‹Ctrl-w› cancella una parola.
+T['scrivendo in una finestra in più: prima Esc, poi si chiude la finestra'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    F:input('<C-w>n')
+    nel_posto(F, atteso('divisa'))
+    F:input('i')
+    uguale(F:modo(), 'i')
+    nel_posto(F, atteso('divisa_i'))
+    F:segui(function() return fuori(F) end, 4)
+    uguale(finestre(F), 2)
+    uguale(F:lua('return vim.api.nvim_get_current_win() == require("dattilo.schermo").principale'), true)
+    uguale(righe_lezione(F), { 'func' })
+  end)
+end
+
+-- Rilievo 2: in esegui la frase dice ‹:e!›, e battendolo una lettera alla volta la riga dei comandi
+-- lo riconosce (prima diceva «che qui non serve»).
+T['in esegui :e! scritto una lettera alla volta è un comando noto'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    F:lua('local L = require("dattilo.lezione") L.esegui(L.s)')
+    F:input('Ax( {<Esc>')
+    F:input(':w<CR>')
+    uguale(F:adesso(), TT.esegui_cambiato)
+    F:input(':')
+    F:input('e')
+    nel_posto(F, atteso('cmd_parziale', 'e', TT.f('cmd_finisci', '‹!›', 'e!', TT.spiega_comando['e!'])))
+    F:input('!')
+    nel_posto(F, atteso('cmd_noto', 'e!', TT.spiega_comando['e!']))
+    F:premi_primo()
+    uguale(F:righe(), F:lua('return require("dattilo.lezione").s.L.batti.codice'))
+    F:aspetta(function() return fuori(F) end)
+    vero(fuori(F), vim.inspect(F:riquadro()))
+  end)
+end
+
+-- Rilievo 3: la guida non nomina un comando che non c'è. Ogni ‹:nome› di ogni testo è un comando
+-- che esiste adesso (nel figlio, con la guida accesa); :salta, :ultima ed :elenco arrivano col
+-- compito 8 e, quando ci sono, la prova passa da sola. ‹:b4› è il comando :b col numero del buffer.
+T['ogni comando scritto nei testi della guida esiste'] = function()
+  con({}, function(F)
+    local trovati = {}
+    local function visita(nome, v)
+      if type(v) == 'string' then
+        for c in v:gmatch('‹:([^›]+)›') do trovati[#trovati + 1] = { nome, c } end
+      elseif type(v) == 'table' then
+        for k, x in pairs(v) do visita(nome .. '.' .. tostring(k), x) end
+      end
+    end
+    visita('T', TT)
+    vero(#trovati > 15, 'pochi comandi trovati: ' .. #trovati)
+    local inesistenti = {}
+    for _, t in ipairs(trovati) do
+      local c = t[2]:gsub('!$', ''):gsub('%%d$', ''):gsub('%d+$', '')
+      local esiste = F:lua('return vim.fn.exists(":" .. ...) > 0', c)
+      if not esiste then
+        local cmd = 'Dattilo' .. c:sub(1, 1):upper() .. c:sub(2)
+        esiste = F:lua('return vim.fn.exists(":" .. ...) == 2', cmd)
+      end
+      if not esiste then inesistenti[#inesistenti + 1] = t[1] .. ' → :' .. t[2] end
+    end
+    uguale(inesistenti, {})
+  end)
+end
+
+-- Rilievo 3: nessuna frase promette una bozza che non c'è (arriva col compito 9).
+T['nessun testo promette quello che il compito 9 non ha ancora fatto'] = function()
+  local vietate = { 'resta salvata', 'è salvato', 'quello che hai scritto resta', 'lo riapre' }
+  local male = {}
+  local function visita(nome, v)
+    if type(v) == 'string' then
+      for _, x in ipairs(vietate) do
+        if v:find(x, 1, true) then male[#male + 1] = nome .. ': «' .. x .. '»' end
+      end
+    elseif type(v) == 'table' then
+      for k, y in pairs(v) do visita(nome .. '.' .. tostring(k), y) end
+    end
+  end
+  visita('T', TT)
+  uguale(male, {})
+end
+
+-- Rilievo 3: un controllo che non passa non è un vicolo cieco: la frase propone ‹:q›, che c'è, e
+-- seguendola si è nell'elenco.
+T['il controllo che non passa: seguendo la guida si esce dalla lezione'] = function()
+  con({ cartella = M.cartella('rifallo-rotta') }, function(F)
+    F:aspetta(function() local r = F:riquadro() return r ~= nil and r.titolo:find('^COMINCIA') ~= nil end)
+    F:input('<CR>')
+    local codice = F:lua('return require("dattilo.lezione").s.L.batti.codice')
+    F:input('i')
+    for i, l in ipairs(codice) do
+      F:input((vim.trim(l):gsub('<', '<lt>')))
+      if i < #codice then F:input('<CR>') end
+    end
+    F:input('<Esc>:w<CR>')
+    uguale(F:riquadro().titolo, TT.titoli.ko)
+    vero(F:adesso():find('‹:q› ‹Invio›', 1, true), F:adesso())
+    F:premi_primo()
+    vero(F:aspetta(function() return F:lua('return require("dattilo.stato").schermo') == 'home' end))
+    uguale(F:lua('return require("dattilo.lezione").s'), vim.NIL)
   end)
 end
 

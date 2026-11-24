@@ -50,18 +50,20 @@ M.batti_scrivi = 'Scrivi il testo grigio, uguale, lettera per lettera. ‹Backsp
 -- «Adesso» nelle altre schermate
 M.briefing = '‹Invio›: apri il codice da riscrivere. Prima, se vuoi, leggi qui sotto cosa ha fatto Claude: non c\'è fretta.'
 M.cmd_w = '‹Invio›: esegui :w, cioè salvi e node controlla il codice.'
-M.controllo_ko = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione.'
+-- ‹:salta› arriva col compito 8: fino ad allora l'uscita è ‹:q›, che c'è (il compito 8 rimette ‹:salta›).
+M.controllo_ko = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco, dove scegli un\'altra.'
 -- Non sono nella 3.3: lo stesso controllo che non passa, in INSERT; e il passo esegui (tempo B),
 -- dove il testo non è più quello di Batti: l'errore sta in «Controllo».
-M.controllo_ko_i = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹Esc›: smetti di scrivere; poi ‹:salta› ‹Invio›: passi alla prossima lezione.'
-M.esegui_ko = 'Il codice è quello della modifica di Claude, quindi l\'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione.'
+M.controllo_ko_i = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹Esc›: smetti di scrivere; poi ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco, dove scegli un\'altra.'
+M.esegui_ko = 'Il codice è quello della modifica di Claude, quindi l\'errore non è tuo. ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco, dove scegli un\'altra.'
 M.esegui_cambiato = 'Il codice non è più quello della modifica di Claude. ‹:e!› ‹Invio›: lo rimetti com\'era; poi ‹:w› ‹Invio›: lo ricontrolli.'
 M.spiegazione = 'Leggi le note accanto alle righe. ‹Invio›: vai al riepilogo. ‹j›: scendi e ‹k›: sali, se il codice non sta tutto nello schermo.'
 M.fatto_coda = '‹Invio›: apri la prossima lezione, “%s”%s.'
 M.fatto_vuota = '‹Invio›: aspetti la prossima modifica di Claude; la lezione si apre da sola.'
 M.elenco = '‹j›: scendi di una lezione; ‹k›: sali (vanno anche le frecce). ‹Invio›: apri la lezione col ▸.'
 M.attesa = 'Niente da premere: appena Claude cambia una funzione JavaScript, la lezione si apre da sola.'
-M.attesa_finita = 'La sessione di Claude è finita: non arrivano altre lezioni. ‹:elenco› ‹Invio›: vedi quelle che ci sono.'
+-- ‹:elenco› arriva col compito 8 (il compito 8 lo rimette: «‹:elenco› ‹Invio›: vedi quelle che ci sono»).
+M.attesa_finita = 'La sessione di Claude è finita: non arrivano altre lezioni. ‹:q› ‹Invio›: chiudi dattilo.'
 
 -- «Controllo»
 M.controllo_ok = 'Node ha controllato il codice: sta in piedi.'
@@ -72,16 +74,20 @@ M.controllo_errore = 'Node non accetta il codice: %s.'
 M.controllo_muto = 'il controllo non è riuscito'
 M.ripreso = 'Ripreso: qui c\'è il testo che avevi scritto l\'altra volta.'
 M.non_si_apre = 'Questa lezione non si apre: %s.'
-M.errore_dattilo = 'Errore di dattilo: %s. Il tuo testo è salvato.'
+-- (il testo non è «salvato»: la bozza arriva col compito 9; qui si dice solo che non è stato toccato)
+M.errore_dattilo = 'Errore di dattilo: %s. Il tuo testo non è cambiato.'
 M.ctrl_z = 'Ctrl-z in Neovim mette in pausa il programma, e il pannello resterebbe fermo: qui è spento. Continua da dove eri.'
 
--- «Comandi»
-M.comandi_batti = '‹:w› ‹Invio›: salvi e node controlla · ‹:q› ‹Invio›: lasci la lezione, resta salvata · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
-M.comandi_testo = '‹q›: vai all\'elenco delle lezioni · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
-M.comandi_modifica = '‹:e!› ‹Invio›: ricominci la modifica da capo · ‹:q› ‹Invio›: lasci la lezione · ‹:salta› ‹Invio›: passi alla prossima'
-M.comandi_fatto = '‹r›: rifai questa lezione · ‹q›: vai all\'elenco delle lezioni · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
-M.comandi_elenco = '‹:ultima› ‹Invio›: apri l\'ultima modifica di Claude · ‹:q› ‹Invio›: chiudi dattilo (quello che hai scritto resta, e «Rifallo tu» lo riapre)'
-M.comandi_attesa = '‹:elenco› ‹Invio›: vedi le lezioni già arrivate · ‹:q› ‹Invio›: chiudi dattilo'
+-- «Comandi». Solo comandi che esistono adesso: ‹:salta›, ‹:ultima› ed ‹:elenco› arrivano col
+-- compito 8, e «resta salvata» (la bozza) col compito 9, che li rimettono nei testi approvati.
+M.comandi_batti = '‹:w› ‹Invio›: salvi e node controlla · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco; quello che hai scritto qui non si conserva'
+M.comandi_testo = '‹q›: vai all\'elenco delle lezioni'
+M.comandi_modifica = '‹:e!› ‹Invio›: ricominci la modifica da capo · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco'
+M.comandi_fatto = '‹r›: rifai questa lezione · ‹q›: vai all\'elenco delle lezioni'
+M.comandi_elenco = '‹:q› ‹Invio›: chiudi dattilo'
+M.comandi_attesa = '‹:q› ‹Invio›: chiudi dattilo'
+-- Non sono nella 3.3: «Comandi» quando il cursore è in un altro buffer (il %d è il numero del codice)
+M.comandi_altro = '‹:b%d› ‹Invio›: torni al codice della lezione, com\'era'
 
 -- Modifica (tempo B)
 M.mod_parole = 'Sei in NORMAL: qui i tasti spostano il cursore e cambiano il testo. A parole: %s Se ti blocchi, fra 15 secondi senza tasti qui compaiono i tasti esatti, uno alla volta.'
@@ -113,18 +119,24 @@ M.posti = {
   -- lezione: chiude solo la finestra in più dal compito 6.
   aiuto = { titolo = 'FINESTRA IN PIÙ', testo = 'Si è aperto l\'aiuto di Neovim, in inglese (l\'apre il tasto F1). ‹Ctrl-w› ‹c›: lo chiudi e torni al codice.' },
   divisa = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due (l\'ha fatto Ctrl-w o un comando come :split). ‹Ctrl-w› ‹c›: chiudi questa finestra e torni al codice.' },
+  -- Non è nella 3.4: si scrive in una finestra in più. In INSERT ‹Ctrl-w› cancella una parola: prima ‹Esc›.
+  divisa_i = { titolo = 'FINESTRA IN PIÙ', testo = 'Stai scrivendo in un\'altra finestra, non nel codice della lezione. ‹Esc›: smetti di scrivere; poi ‹Ctrl-w› ‹c›: chiudi questa finestra e torni al codice.' },
   divisa_principale = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo la finestra del codice; il riquadro torna da solo.' },
   frecce = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹Esc›: smetti di scrivere; poi ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra; poi ‹A›: torni a scrivere in fondo alla riga.' },
   -- in NORMAL ‹Esc› non fa niente: si comincia da ‹A›
   frecce_n = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹A›: torni a scrivere in fondo alla riga. Per spostarti, in NORMAL: ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra.' },
   -- Cambiato costruendo: le lettere di visual sono tasti da premere, il primo è ‹v› e non ‹Invio›.
   ex = { titolo = 'MODALITÀ EX', testo = 'Sei nella modalità Ex (l\'apre g seguito da Q). ‹v› ‹i› ‹s› ‹u› ‹a› ‹l› ‹Invio›: torni allo schermo normale (scrivi visual, poi Invio).' },
-  -- Non è nella 3.4: un terminale in NORMAL (riga 16, dopo ‹Ctrl-\› ‹Ctrl-n›). ‹Ctrl-^› rimette il
-  -- buffer di prima, col testo com'era; :q lascerebbe la lezione.
-  terminale = { titolo = 'UN TERMINALE', testo = 'Sei in un terminale dentro Neovim (l\'apre il comando :terminal). ‹Ctrl-^›: torni al codice di prima, com\'era (tieni premuto Ctrl e premi il tasto 6).' },
+  -- Non è nella 3.4: un terminale in NORMAL (riga 16, dopo ‹Ctrl-\› ‹Ctrl-n›). Il ritorno è :b e il
+  -- numero del buffer del codice: ‹Ctrl-^› con due terminali rimbalza fra i due.
+  terminale = { titolo = 'UN TERMINALE', testo = 'Sei in un terminale dentro Neovim (l\'apre il comando :terminal). ‹:b%d› ‹Invio›: torni al codice della lezione, com\'era.' },
+  -- Non sono nella 3.4: nella finestra della lezione c'è un altro buffer (‹Ctrl-^›, :e, :bn, ‹Ctrl-o›).
+  -- Il ritorno è :b e il numero del buffer del codice: ‹Ctrl-^› rimbalzerebbe fra due buffer qualunque.
+  altro_buffer = { titolo = 'UN ALTRO FILE', testo = 'Qui non c\'è il codice della lezione, ma un altro file (ci si arriva con un comando come :e o :bn, o col tasto Ctrl-^). ‹:b%d› ‹Invio›: torni al codice della lezione, com\'era.' },
+  altro_buffer_i = { titolo = 'UN ALTRO FILE', testo = 'Stai scrivendo in un altro file, non nel codice della lezione. ‹Esc›: smetti di scrivere; poi ‹:b%d› ‹Invio›: torni al codice della lezione, com\'era.' },
   -- Cambiato costruendo: ‹Ctrl-\› ‹Ctrl-n› porta in NORMAL da ogni modalità, anche da un terminale,
   -- dove ‹Esc› va al programma e non a Neovim.
-  sconosciuto = { titolo = 'POSTO SCONOSCIUTO', testo = 'Sei in una modalità di Neovim che la guida non conosce (in basso: %s). ‹Ctrl-\\› ‹Ctrl-n›: torni in NORMAL, da qualunque modalità (anche da un terminale, dove Esc non basta). Se il codice non si vede più, ‹:q› ‹Invio›: lasci la lezione, che resta salvata.' },
+  sconosciuto = { titolo = 'POSTO SCONOSCIUTO', testo = 'Sei in una modalità di Neovim che la guida non conosce (in basso: %s). ‹Ctrl-\\› ‹Ctrl-n›: torni in NORMAL, da qualunque modalità (anche da un terminale, dove Esc non basta).' },
 }
 
 -- Un pezzo di cmd_parziale: i tasti che mancano, il comando intero e cosa fa.
@@ -137,9 +149,12 @@ M.frecce_n = M.posti.frecce_n.testo
 -- Le spiegazioni dei comandi noti (3.4, riga 3)
 M.spiega_comando = {
   w = 'salvi e node controlla il codice',
-  q = 'lasci la lezione, che resta salvata',
+  -- la bozza (che fa restare il testo) arriva col compito 9
+  q = 'lasci la lezione e torni all\'elenco',
+  q_scritto = 'lasci la lezione e torni all\'elenco; quello che hai scritto qui non si conserva',
   q_finestra = 'chiudi questa finestra e torni al codice',
-  q_esci = 'chiudi dattilo; quello che hai scritto resta',
+  q_esci = 'chiudi dattilo',
+  b = 'torni al codice della lezione, com\'era',
   salta = 'passi alla prossima lezione',
   ultima = 'vai all\'ultima modifica di Claude',
   elenco = 'vedi le lezioni di Rifallo tu',
