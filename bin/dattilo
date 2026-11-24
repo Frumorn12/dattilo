@@ -22,7 +22,8 @@ case "${1:-}" in
   vivo)
     case "${2:-}" in
       --dove) cli vivo-dove; exit $? ;;
-      --prova) shift 2; cli vivo-prova "$@"; exit $? ;;
+      # exec: un segnale (la mod che dopo il tetto ferma il comando) arriva a Neovim, non si ferma a bash
+      --prova) shift 2; exec nvim --clean --headless -l "$DIR/lua/dattilo/cli.lua" vivo-prova "$@" ;;
     esac
     [ -d "${2:-}" ] || { echo "uso: dattilo vivo <cartella> [opzioni di nvim]" >&2; exit 1; }
     # assoluta: Neovim può cambiare cartella, e i percorsi relativi non varrebbero più

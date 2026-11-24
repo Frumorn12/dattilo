@@ -371,10 +371,81 @@ T['vivo --dove ora dice 2'] = function()
   uguale(vim.json.decode(r.stdout), { vivo = 2, radice = RADICE })
 end
 
+T['la riscrittura del par è atomica: un file nuovo che prende il posto, non un file riscritto sul posto'] = function()
+  local f, env, dir = lezione(con_par_zero())
+  local prima = vim.uv.fs_stat(f)
+  local r = prova(f, env)
+  uguale(r.code, 0, r.stderr)
+  local dopo = vim.uv.fs_stat(f)
+  vero(dopo.ino ~= prima.ino, 'l\'inode è lo stesso: il file è stato riscritto sul posto, non rinominato')
+  uguale(dopo.nlink, 1)
+  uguale(leggi_byte(f), ORIGINALE)
+  uguale(vim.fn.readdir(dir), { '003-sosia.md.4242' })
+end
+
+T['una cartella che non si può scrivere: 2 (è l\'ambiente, non la lezione), e il file resta com\'è'] = function()
+  local testo = con_par_zero()
+  local f, env, dir = lezione(testo)
+  vim.uv.fs_chmod(dir, tonumber('555', 8))
+  local scrivibile = vim.uv.fs_access(dir, 'W') -- chi è root la scrive lo stesso: la prova non ha niente da dire
+  local r = scrivibile and { code = 2, stdout = '{}' } or prova(f, env)
+  vim.uv.fs_chmod(dir, tonumber('755', 8))
+  if scrivibile then return end
+  uguale(r.code, 2, r.stderr)
+  local d = json(r)
+  uguale(d.ok, false)
+  vero(d.motivo:find('par', 1, true), d.motivo)
+  uguale(leggi_byte(f), testo)
+  uguale(vim.fn.readdir(dir), { '003-sosia.md.4242' })
+end
+
+-- Il figlio lavora solo dentro la sandbox: lanciato a mano non fa niente, nemmeno con la variabile che dice «sono dentro».
+T['vivo-prova-figlio a mano, fuori dalla sandbox: si rifiuta e non fa niente'] = function()
+  local f, env, dir = lezione(con_par_zero())
+  local lavoro = vim.fn.tempname()
+  vim.fn.mkdir(lavoro, 'p')
+  for _, extra in ipairs({ {}, { DATTILO_IN_SANDBOX = '1' } }) do -- la seconda: la cartella della lezione si scrive, quindi non è la sandbox
+    local e = vim.tbl_extend('force', env, extra)
+    local r = vim.system({ 'nvim', '--clean', '--headless', '-l', RADICE .. '/lua/dattilo/cli.lua', 'vivo-prova-figlio', f, lavoro },
+      { env = e, text = true, timeout = 30000 }):wait()
+    uguale(r.code, 2, r.stderr)
+    uguale(r.stdout, '')
+    vero(r.stderr:find('sandbox', 1, true), r.stderr)
+    uguale(vim.fn.readdir(lavoro), {}, 'il figlio non doveva lasciare niente')
+  end
+  uguale(leggi_byte(f), con_par_zero())
+end
+
+T['bin/dattilo lancia nvim con exec: un segnale arriva a Neovim e la prova muore con tutto quello che ha lanciato'] = con_sandbox(function()
+  local testo = A.con_soluzione(con_par_zero(), 'qqqqqix<Esc>@qq@q') -- non finisce mai: il tetto è lontano
+  local f, env, dir = lezione(testo)
+  local e = vim.tbl_extend('force', env, { DATTILO_PROVA_TETTO = '30000' })
+  local proc = vim.system({ RADICE .. '/bin/dattilo', 'vivo', '--prova', f }, { env = e, text = true })
+  vero(vim.wait(5000, function() return #A.processi_con('vivo-prova-figlio ' .. f) > 0 end, 20), 'il figlio non è partito')
+  local comm = vim.fn.readfile('/proc/' .. proc.pid .. '/comm')[1]
+  proc:kill(15)
+  proc:wait()
+  local rimasti = A.aspetta_senza_processi(dir, 3000)
+  for _, pid in ipairs(rimasti) do vim.uv.kill(pid, 'sigkill') end -- se la prova fallisce non lascia processi in giro
+  uguale(comm, 'nvim', 'il processo di bin/dattilo è ' .. tostring(comm) .. ': senza exec il segnale si ferma a bash')
+  uguale(rimasti, {}, 'dopo il SIGTERM è rimasto vivo qualcosa della prova')
+  uguale(leggi_byte(f), testo)
+end)
+
+T['dopo il tetto non resta nessun nvim vivo'] = con_sandbox(function()
+  local testo = A.con_soluzione(con_par_zero(), 'qqqqqix<Esc>@qq@q')
+  local f, env, dir = lezione(testo)
+  local r = prova(f, env, { DATTILO_PROVA_TETTO = '1200' })
+  uguale(r.code, 1, r.stderr)
+  vero(json(r).motivo:find('tempo', 1, true), r.stdout)
+  uguale(A.aspetta_senza_processi(dir, 3000), {}, 'dopo il tetto è rimasto vivo qualcosa della prova')
+  uguale(leggi_byte(f), testo)
+end)
+
 -- Le prove che hanno bisogno dei tasti eseguiti saltano dove bwrap non c'è; quelle sull'uso e sul rifiuto no.
 local SENZA = {
   ['file che non c è o nessun argomento: 2'] = true, ['un file che è un link: 2, e il link resta com\'è'] = true,
-  ['vivo --dove ora dice 2'] = true, ['senza sandbox: 2 e niente eseguito'] = true,
+  ['vivo --dove ora dice 2'] = true, ['vivo-prova-figlio a mano, fuori dalla sandbox: si rifiuta e non fa niente'] = true, ['senza sandbox: 2 e niente eseguito'] = true,
   ['senza sandbox anche i tasti sbagliati e le lezioni rotte danno 2, non un verdetto'] = true,
   ['un bwrap che non funziona vale come niente sandbox: 2 e niente eseguito'] = true, ['bwrap che non c è: 2 e niente eseguito'] = true,
 }

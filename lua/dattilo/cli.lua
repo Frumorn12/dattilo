@@ -179,7 +179,8 @@ end
 -- cartella della lezione in sola lettura e una cartella temporanea sua dove scrivere. Il verdetto lo decide questo
 -- processo, fuori dalla sandbox: del figlio guarda soltanto il testo che il buffer ha alla fine (un file nella cartella
 -- temporanea), conta i tasti dal testo della lezione e riscrive il par. Quello che il figlio stampa non conta.
--- Scrive una riga JSON e esce con 0 (tutto va), 1 (lezione rifiutata) o 2 (uso sbagliato, file illeggibile, niente sandbox).
+-- Scrive una riga JSON e esce con 0 (tutto va), 1 (lezione rifiutata) o 2 (uso sbagliato, file illeggibile, o un problema
+-- dell'ambiente: niente sandbox, bwrap che non parte, il par che non si riesce a scrivere).
 local USO_PROVA = 'uso: dattilo vivo --prova <lezione.md>'
 local MOTIVO_SENZA_SANDBOX = 'senza sandbox i tasti di una lezione non si provano'
 local TETTO_PROVA = 9000 -- ms: la mod aspetta al massimo 10 s, e una soluzione che non finisce va fermata prima
@@ -213,7 +214,8 @@ local function leggi_lezione(file)
 end
 
 -- Riscrive le righe par: in modo atomico: un file nuovo nella stessa cartella (il nome non finisce in .md, perché
--- dattilo vivo legge lezioni/*.md), con il modo di prima, e poi fs_rename. Ritorna true, o false e il motivo.
+-- dattilo vivo legge lezioni/*.md), con il modo di prima, e poi fs_rename. Ritorna true, o false e il motivo; se non si
+-- riesce a scrivere (cartella non scrivibile, disco pieno) il terzo valore è true: è l'ambiente, non la lezione.
 local function riscrivi_par(file, testo, st, L, tasti)
   local righe = vim.split(testo, '\n', { plain = true })
   local cambiato = false
@@ -227,7 +229,7 @@ local function riscrivi_par(file, testo, st, L, tasti)
   local contenuto = table.concat(righe, '\n')
   local tmp = string.format('%s.par-%d-%d', file, vim.uv.os_getpid(), vim.uv.hrtime() % 1000000000)
   local fd, e = vim.uv.fs_open(tmp, 'wx', tonumber('600', 8))
-  if not fd then return false, 'non riesco a riscrivere il par: ' .. tostring(e) end
+  if not fd then return false, 'non riesco a riscrivere il par: ' .. tostring(e), true end
   local scritti, e2 = vim.uv.fs_write(fd, contenuto)
   vim.uv.fs_close(fd)
   local ok, e3 = scritti == #contenuto, e2
@@ -235,7 +237,7 @@ local function riscrivi_par(file, testo, st, L, tasti)
   if ok then ok, e3 = vim.uv.fs_rename(tmp, file) end
   if not ok then
     vim.uv.fs_unlink(tmp)
-    return false, 'non riesco a riscrivere il par: ' .. tostring(e3)
+    return false, 'non riesco a riscrivere il par: ' .. tostring(e3), true
   end
   return true
 end
@@ -323,8 +325,8 @@ local function giudica(assoluto, testo, st, L, cartella)
     end
     tasti[i] = esercizio.conta_tasti(m.soluzione)
   end
-  local ok, motivo = riscrivi_par(assoluto, testo, st, L, tasti)
-  if not ok then return 1, json_no(motivo) end
+  local ok, motivo, ambiente = riscrivi_par(assoluto, testo, st, L, tasti)
+  if not ok then return ambiente and 2 or 1, json_no(motivo) end
   return 0, json_si(tasti)
 end
 
@@ -351,6 +353,12 @@ local function comando_figlio(args)
   local file, cartella = args[2], args[3]
   local testo = file and cartella and leggi_lezione(file)
   if not testo then io.stderr:write('vivo-prova-figlio: uso: <lezione> <cartella>\n') return 2 end
+  -- Solo dentro la sandbox: bwrap mette DATTILO_IN_SANDBOX e la cartella della lezione in sola lettura. Una variabile
+  -- messa a mano non basta: fuori da bwrap quella cartella si scrive.
+  if vim.env.DATTILO_IN_SANDBOX ~= '1' or vim.uv.fs_access(vim.fs.dirname(file), 'W') or not vim.uv.fs_access(cartella, 'W') then
+    io.stderr:write('vivo-prova-figlio: si lancia solo da dattilo vivo --prova, dentro la sandbox\n')
+    return 2
+  end
   local L = require('dattilo.formato').lezione(testo, vim.fn.fnamemodify(file, ':t'), 1)
   if not L then io.stderr:write('vivo-prova-figlio: la lezione non si legge\n') return 1 end
   local controlla = require('dattilo.controlla')
