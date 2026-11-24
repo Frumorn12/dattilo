@@ -51,6 +51,11 @@ M.batti_scrivi = 'Scrivi il testo grigio, uguale, lettera per lettera. ‹Backsp
 M.briefing = '‹Invio›: apri il codice da riscrivere. Prima, se vuoi, leggi qui sotto cosa ha fatto Claude: non c\'è fretta.'
 M.cmd_w = '‹Invio›: esegui :w, cioè salvi e node controlla il codice.'
 M.controllo_ko = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione.'
+-- Non sono nella 3.3: lo stesso controllo che non passa, in INSERT; e il passo esegui (tempo B),
+-- dove il testo non è più quello di Batti: l'errore sta in «Controllo».
+M.controllo_ko_i = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹Esc›: smetti di scrivere; poi ‹:salta› ‹Invio›: passi alla prossima lezione.'
+M.esegui_ko = 'Il codice è quello della modifica di Claude, quindi l\'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione.'
+M.esegui_cambiato = 'Il codice non è più quello della modifica di Claude. ‹:e!› ‹Invio›: lo rimetti com\'era; poi ‹:w› ‹Invio›: lo ricontrolli.'
 M.spiegazione = 'Leggi le note accanto alle righe. ‹Invio›: vai al riepilogo. ‹j›: scendi e ‹k›: sali, se il codice non sta tutto nello schermo.'
 M.fatto_coda = '‹Invio›: apri la prossima lezione, “%s”%s.'
 M.fatto_vuota = '‹Invio›: aspetti la prossima modifica di Claude; la lezione si apre da sola.'
@@ -62,6 +67,9 @@ M.attesa_finita = 'La sessione di Claude è finita: non arrivano altre lezioni. 
 M.controllo_ok = 'Node ha controllato il codice: sta in piedi.'
 M.controllo_mancano = 'Salvato, ma il testo non è ancora uguale al grigio: mancano %d caratteri. Il controllo parte quando è uguale.'
 M.controllo_rosso = 'Salvato, ma c\'è del rosso: il controllo parte quando il testo è uguale al grigio.'
+-- Non sono nella 3.3: l'errore di node fuori da Batti, e il motivo quando node non dice niente.
+M.controllo_errore = 'Node non accetta il codice: %s.'
+M.controllo_muto = 'il controllo non è riuscito'
 M.ripreso = 'Ripreso: qui c\'è il testo che avevi scritto l\'altra volta.'
 M.non_si_apre = 'Questa lezione non si apre: %s.'
 M.errore_dattilo = 'Errore di dattilo: %s. Il tuo testo è salvato.'

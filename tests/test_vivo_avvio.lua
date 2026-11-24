@@ -58,15 +58,22 @@ T['senza vivo la guida resta spenta'] = function()
   end)
 end
 
-local LUNGO = 'Node non accetta il codice: SyntaxError: Unexpected token, expected "," (riga 3, colonna 12): '
-  .. 'controlla le parentesi e le virgole di quella riga.'
-
--- In Batti della prima lezione, con le dimensioni date e un Controllo lungo.
+-- In Batti della prima lezione, con le dimensioni date e un Controllo vero e lungo: la riga 2
+-- lasciata a metà, la 3 scritta sotto, poi :w. «Adesso» dice di tornare alla riga 2, «Controllo»
+-- quanti caratteri mancano: a 80 colonne vanno a capo tutte e due.
 local function batti_con_controllo(F, colonne, righe)
   F:aspetta(function() return F:riquadro() ~= nil end)
   F:lua('vim.o.columns, vim.o.lines = ...', colonne, righe)
   F:input('<CR>')
-  F:lua('require("dattilo.guida").eco({ { ... } })', LUNGO)
+  F:input('ifunction somma(a, b) {<CR>if (t<CR>return a<Esc>')
+  F:input(':w<CR>')
+end
+
+local function attesi(F)
+  local TT = require('dattilo.guida_testi')
+  local codice = F:lua('return require("dattilo.lezione").s.L.batti.codice')
+  local mancano = #table.concat(codice, '\n') - #table.concat(F:righe(), '\n')
+  return TT.f('batti_indietro_n', 2, 2, 2), TT.f('controllo_mancano', mancano)
 end
 
 for _, d in ipairs({ { 80, 24 }, { 120, 40 } }) do
@@ -74,15 +81,22 @@ for _, d in ipairs({ { 80, 24 }, { 120, 40 } }) do
     local TT = require('dattilo.guida_testi')
     M.con({ cartella = M.cartella(), vivo = true }, function(F)
       batti_con_controllo(F, d[1], d[2])
+      local adesso, ctrl = attesi(F)
+      uguale(F:riquadro().sezioni.Controllo, ctrl)
+      if d[1] == 80 then
+        -- è davvero lungo: a 80 colonne «Controllo» e «Adesso» vanno a capo
+        local largo = 80 - 4 - require('dattilo.guida').ETICHETTA
+        vero(#require('dattilo.ui').a_capo(ctrl, largo) >= 2, ctrl)
+        vero(#require('dattilo.ui').a_capo(adesso, largo) >= 2, adesso)
+      end
       local A = F:a_schermo()
-      uguale(A.sezioni.Adesso, M.a_schermo(TT.batti_vuoto))
+      uguale(A.sezioni.Adesso, M.a_schermo(adesso))
       uguale(A.sezioni.Comandi, M.a_schermo(TT.comandi_batti))
-      vero(A.sezioni.Controllo, vim.inspect(A.righe))
+      uguale(A.sezioni.Controllo, M.a_schermo(ctrl))
       vero(A.finisce.Adesso:sub(-3) ~= '…' and A.finisce.Comandi:sub(-3) ~= '…', vim.inspect(A.righe))
       uguale(A.alto, #A.righe, 'la finestra non mostra tutto il riquadro')
       for _, r in ipairs(A.righe) do uguale(vim.fn.strdisplaywidth(r), d[1], r) end
-      -- l'etichetta Controllo è staccata dal suo testo (col testo di Batti vuoto, dopo il compito 4,
-      -- eco dice che il testo non è ancora uguale al grigio)
+      -- l'etichetta Controllo è staccata dal suo testo
       local riga
       for _, r in ipairs(A.righe) do if r:find('Controllo', 1, true) then riga = r end end
       vero(riga:find('│ Controllo  Salvato', 1, true), riga)
@@ -94,12 +108,13 @@ T['ridimensionando la finestra il riquadro si rimisura'] = function()
   local TT = require('dattilo.guida_testi')
   M.con({ cartella = M.cartella(), vivo = true }, function(F)
     batti_con_controllo(F, 120, 40)
+    local adesso = attesi(F)
     local prima = F:a_schermo()
     F:lua('vim.o.columns, vim.o.lines = 80, 24')
     local dopo = F:a_schermo()
     vero(dopo.alto ~= prima.alto, 'stessa altezza a 120x40 e a 80x24: ' .. prima.alto)
     uguale(dopo.alto, #dopo.righe, 'la finestra non mostra tutto il riquadro')
-    uguale(dopo.sezioni.Adesso, M.a_schermo(TT.batti_vuoto))
+    uguale(dopo.sezioni.Adesso, M.a_schermo(adesso))
     uguale(dopo.sezioni.Comandi, M.a_schermo(TT.comandi_batti))
     -- un ridisegno qualunque non cambia più niente: la misura è già quella di 80x24
     F:lua('require("dattilo.lezione").tip()')

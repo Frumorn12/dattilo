@@ -379,7 +379,12 @@ Con la guida la nota «Riga vuota: … ‹Invio› e vai avanti.» di `lezione.t
 |---|---|---|
 | Briefing | `briefing` | ‹Invio›: apri il codice da riscrivere. Prima, se vuoi, leggi qui sotto cosa ha fatto Claude: non c'è fretta. |
 | Riga dei comandi con `w` | `cmd_w` | ‹Invio›: esegui :w, cioè salvi e node controlla il codice. |
-| Controllo che non passa | `controllo_ko` | Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione. |
+| Controllo che non passa, in Batti | `controllo_ko` | Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione. |
+| Lo stesso, in INSERT | `controllo_ko_i` | Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l'errore non è tuo. ‹Esc›: smetti di scrivere; poi ‹:salta› ‹Invio›: passi alla prossima lezione. |
+| Passo esegui (tempo B), in INSERT | `batti_finito_i` | come in Batti |
+| Passo esegui, in NORMAL | `batti_finito_n` | come in Batti |
+| Passo esegui, node rifiuta il codice della modifica | `esegui_ko` | Il codice è quello della modifica di Claude, quindi l'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione. |
+| Passo esegui, node rifiuta un codice cambiato dopo la modifica | `esegui_cambiato` | Il codice non è più quello della modifica di Claude. ‹:e!› ‹Invio›: lo rimetti com'era; poi ‹:w› ‹Invio›: lo ricontrolli. |
 | Spiegazione | `spiegazione` | Leggi le note accanto alle righe. ‹Invio›: vai al riepilogo. ‹j›: scendi e ‹k›: sali, se il codice non sta tutto nello schermo. |
 | Riepilogo, con coda | `fatto_coda` | ‹Invio›: apri la prossima lezione, “%s”%s. |
 | Riepilogo, senza coda | `fatto_vuota` | ‹Invio›: aspetti la prossima modifica di Claude; la lezione si apre da sola. |
@@ -396,6 +401,8 @@ In `fatto_coda` il secondo `%s` è « (2 nuove)» quando ce ne sono, altrimenti 
 | `controllo_ok` | Node ha controllato il codice: sta in piedi. |
 | `controllo_mancano` | Salvato, ma il testo non è ancora uguale al grigio: mancano %d caratteri. Il controllo parte quando è uguale. |
 | `controllo_rosso` | Salvato, ma c'è del rosso: il controllo parte quando il testo è uguale al grigio. |
+| `controllo_errore` | Node non accetta il codice: %s. (fuori da Batti; in Batti il titolo è IL CONTROLLO NON PASSA e la frase sta in «Adesso») |
+| `controllo_muto` | il controllo non è riuscito (il `%s` delle frasi qui sopra, quando node non dice niente) |
 | `ripreso` | Ripreso: qui c'è il testo che avevi scritto l'altra volta. |
 | `non_si_apre` | Questa lezione non si apre: %s. |
 | `errore_dattilo` | Errore di dattilo: %s. Il tuo testo è salvato. |
@@ -987,6 +994,8 @@ Oggi niente la accende fuori da `vivo`: il dattilo di oggi non cambia.
 |---|---|
 | 12 | `M.guida = nil`: la guida accesa (guida.lua) o nil, cioè il dattilo di sempre |
 | 22 (`eco`) | con la guida, `return M.guida.eco(chunks)`: gli esiti vanno in «Controllo» (G5) |
+| 310 (`BufWritePost`) | con la guida, `M.guida.protetta(salvato, s)`: un errore nel salvataggio va nel riquadro, non in un «Error executing autocommand» su più righe (G5) |
+| 101 e 456 (le righe mute «‹q› torna alla home» di briefing e spiegazione) | con la guida non si scrivono: le istruzioni sono nel riquadro, e la home lì non c'è |
 | 105 (fine di `briefing`) | `M.guida.schermata(s)` |
 | 194-197 (`tip`) | con la guida, `return M.guida.tip(s)` |
 | 260-265 (`dopo_modifica`) | con la guida, se il testo finale è uguale al codice di Batti, `M.spiegazione(s)` al posto di `M.esegui(s)` (3.2, punto 8) |
@@ -1006,7 +1015,9 @@ Oggi niente la accende fuori da `vivo`: il dattilo di oggi non cambia.
 | `M.tip(s)` | Il riquadro per i passi batti, modifica ed esegui: titolo, «Adesso», «Controllo», le sezioni di `lezione.tip_batti` senza l'avviso e senza «Vim», «Comandi». Alza il riquadro (`ui.altezza_tip`) fino a 10 righe interne, perché «Adesso» e «Comandi» stiano interi. |
 | `M.schermata(s)` | Chiamata in fondo a ogni schermata della lezione. Riapre il riquadro (briefing e spiegazione lo chiudono, lezione.lua:70 e 421). Aggiunge a `stato.destra` quello del fornitore. Chiama `fornitore.su_schermata(s)`. |
 | `M.mostra(titolo, adesso, comandi, altre)` | Il riquadro delle schermate di `vivo` (riepilogo, elenco, attesa). |
-| `M.eco(chunks)` | Mette l'ultimo esito in «Controllo», che resta fino al prossimo cambio del testo. |
+| `M.eco(chunks)` | Mette l'ultimo esito in «Controllo», che resta fino al prossimo cambio del testo. In Batti, col testo uguale e node che rifiuta, il titolo è IL CONTROLLO NON PASSA e la frase va in «Adesso» (`controllo_ko`, `controllo_ko_i`); negli altri passi l'errore va in «Controllo» (`controllo_errore`). Nei passi che la guida non disegna ancora (modifica e rompi, tempo B) l'esito va nel riquadro di prima: non sparisce mai. |
+| `M.protetta(fn, …)` | Esegue `fn` protetta, come le funzioni della guida: un errore va nel riquadro. La usa `lezione.lua` per il salvataggio (`BufWritePost`) quando la guida è accesa. |
+| `M.errore_disegno()` | L'ultimo errore della guida che non si è potuto nemmeno disegnare nel riquadro, per le prove. |
 | `M.adesso_batti(x) → string` | Pura. `x = { codice, righe, r, c, modo, frecce, cambiato, annullato }`: `annullato` vuol dire che la storia degli annullamenti (`undotree().seq_cur`) è più indietro di quella dell'ultima uscita dalla scrittura. Dà la frase della tabella della 3.3. |
 | `M.cambio_voluto(buf)` | Il testo di adesso è quello «giusto»: lo chiamano l'uscita dalla scrittura (`ModeChanged`, perché con ‹Ctrl-c› `InsertLeave` non scatta), l'apertura di Batti e la bozza rimessa. In NORMAL un testo diverso da questo è un testo cambiato. |
 | `M.carattere(ch) → string\|nil, string` | Pura: G11. Il secondo valore è la nota sulle lettere maiuscole fra i tasti (`maiuscola`, `maiuscole`), o `''`. |
@@ -1386,6 +1397,11 @@ I testi della guida nuovi o cambiati rispetto a quelli approvati, uno per riga, 
 - `batti_carattere` (cambiato: in fondo dice le maiuscole): «Il prossimo carattere, %s, non è sulla tastiera. %s: lo scrive (tieni premuto Ctrl e premi la lettera, poi gli altri tasti%s).»
 - `maiuscola` e `maiuscole` (nuovi pezzi di `batti_carattere`): «; %s maiuscola», «; %s e %s maiuscole».
 - `una_volta` e `volte` (pezzi di `batti_spezzata`, prima scritti nel codice): «una volta», «%d volte».
+- `controllo_ko_i` (nuovo, il controllo che non passa in INSERT): «Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l'errore non è tuo. ‹Esc›: smetti di scrivere; poi ‹:salta› ‹Invio›: passi alla prossima lezione.»
+- `controllo_errore` (nuovo, l'errore di node fuori da Batti, in «Controllo»): «Node non accetta il codice: %s.»
+- `controllo_muto` (nuovo pezzo, prima scritto nel codice): «il controllo non è riuscito».
+- `esegui_ko` (nuovo, passo esegui del tempo B): «Il codice è quello della modifica di Claude, quindi l'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione.»
+- `esegui_cambiato` (nuovo, passo esegui del tempo B): «Il codice non è più quello della modifica di Claude. ‹:e!› ‹Invio›: lo rimetti com'era; poi ‹:w› ‹Invio›: lo ricontrolli.»
 
 **Ordine e regole di «Adesso» in Batti** (la tabella della 3.3 è già quella nuova).
 - In INSERT la riga spezzata a metà del testo scritto viene prima di tutto: con ‹Fine› e poi ‹Backspace› la coda scesa giù si cancellerebbe.
@@ -1393,4 +1409,8 @@ I testi della guida nuovi o cambiati rispetto a quelli approvati, uno per riga, 
 - In INSERT vale `k ≠ r`, non solo `k < r`: con la riga da finire sotto il cursore, ‹Invio› aprirebbe una riga in più e tutto sotto diventerebbe rosso. A metà di una riga intera, con un'altra da finire, si va subito lì.
 - In NORMAL `batti_annullato` e `batti_cambiato` vengono prima di «niente scritto»: dopo un `dd` o un ‹u› che svuotano il buffer, ‹i› farebbe riscrivere tutto.
 - Con la guida la nota «Riga vuota: … ‹Invio› e vai avanti.» di Batti non si mostra (‹Invio› senza i due punti, G3).
+
+**Il riquadro.**
+- «Adesso» vale sempre per il modo in cui si è: il controllo che non passa ha la sua frase in INSERT, e il passo esegui la sua.
+- Una parola più larga della riga del riquadro (un nome lunghissimo nell'errore di node, un percorso) si spezza in pezzi che ci stanno, invece di uscire dal bordo.
 

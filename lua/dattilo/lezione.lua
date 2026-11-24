@@ -307,7 +307,11 @@ function M.batti(s)
     return { NOMI[s.passo] }
   end
   local g = vim.api.nvim_create_augroup('dattilo_lezione', { clear = true })
-  vim.api.nvim_create_autocmd('BufWritePost', { group = g, buffer = s.buf, callback = function() if M.s == s then salvato(s) end end })
+  vim.api.nvim_create_autocmd('BufWritePost', { group = g, buffer = s.buf, callback = function()
+    if M.s ~= s then return end
+    -- con la guida un errore qui va nel riquadro, non in un «Error executing autocommand» (G5)
+    if M.guida then M.guida.protetta(salvato, s) else salvato(s) end
+  end })
   vim.api.nvim_create_autocmd({ 'ModeChanged', 'CursorMovedI', 'TextChanged', 'TextChangedI' }, { group = g, buffer = s.buf, callback = function()
     if M.s == s and s.frecce then s.frecce = false end
     tip(s)
