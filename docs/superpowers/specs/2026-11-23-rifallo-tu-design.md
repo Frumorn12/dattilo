@@ -1523,3 +1523,22 @@ I testi della guida nuovi o cambiati rispetto a quelli approvati, uno per riga, 
 - Un `azione` che non sia `apri` o `ultima` scarta il file, come per i tipi sbagliati.
 - La lezione aperta entra in `aperte` a ogni giro, anche se non l'ha aperta `vivo.apri`.
 - `parti_canale` gira protetta come il timer: un errore all'avvio va nel riquadro, e il timer parte lo stesso.
+
+**Compito 9 (24/11): la bozza, niente testo perso.**
+
+*Testi che tornano a «resta salvata»* (erano provvisori fino alla bozza; i nomi sono gli stessi):
+- `comandi_batti`: «‹:w› ‹Invio›: salvi e node controlla · ‹:q› ‹Invio›: lasci la lezione e torni all'elenco; resta salvata · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all'ultima modifica di Claude». Rispetto al progetto («lasci la lezione, resta salvata») dice anche dove si va, perché chi non sa Vim deve saperlo prima dell'Invio.
+- `comandi_elenco`: «‹:ultima› ‹Invio›: apri l'ultima modifica di Claude · ‹:q› ‹Invio›: chiudi dattilo (quello che hai scritto resta, e «Rifallo tu» lo riapre)» (è la frase del progetto).
+- `spiega_comando.q_scritto` (con del testo scritto, nella lezione): «lasci la lezione, che resta salvata, e torni all'elenco». `spiega_comando.q` (senza testo) resta «lasci la lezione e torni all'elenco».
+- `spiega_comando.q_esci` (nell'elenco e nell'attesa): «chiudi dattilo; quello che hai scritto resta».
+- `spiega_comando.qa_scritto`: «chiudi dattilo del tutto (qa vuol dire «esci da tutto»); quello che hai scritto resta salvato».
+- `errore_dattilo`: «Errore di dattilo: %s. Il tuo testo è salvato.»
+
+*Com'è fatto.*
+- **Quando si salva** (`bozze/<id>.json`, solo nel passo di Batti, solo se le righe sono cambiate): uscendo dalla scrittura (`ModeChanged` in uscita da INSERT o REPLACE, perché con ‹Ctrl-c› `InsertLeave` non scatta), lasciando la lezione (un solo punto, `lascia`, in `vivo.apri`, nell'elenco e nell'attesa: ci passano ‹:q›, ‹:salta›, ‹:ultima›, le richieste della mod e ‹q›), alla chiusura di Neovim (`VimLeavePre`) e, mentre si scrive, al massimo ogni 2 secondi dentro `controlla`. Alla chiusura si riscrive anche `stato.json` (`aperte` deve sopravvivere).
+- **Chiuso da fuori** (SIGTERM, SIGHUP: il pannello chiuso): Neovim scarica i buffer prima di `VimLeavePre`, e il buffer risponde senza righe. Il testo si prende allora da quello che `batti.lua` ha già visto (`st.prima`, aggiornato a ogni modifica). Visto nelle prove: senza questo ripiego la bozza si cancellava proprio in questo caso.
+- **Riaprendo** (`vivo.apri`): con una bozza di Batti si va dritti a Batti, senza briefing, col testo di prima, il cursore in fondo all'ultima riga scritta, «Controllo» che dice `ripreso` (sparisce al primo tasto) e «Adesso» `batti_riprendi` (‹A›). Solo la riapertura rimette la bozza: un `:e!` ricomincia da capo.
+- **La bozza si toglie** quando la lezione è fatta, e quando il buffer di Batti è tornato vuoto (una bozza vecchia riporterebbe testo che la persona ha cancellato). Una bozza che non è fatta bene (non è JSON, `v` diversa, righe che non sono stringhe o con un a capo, vuota, più di 262144 byte o 2000 righe, passo sconosciuto o `modifica`, che è del tempo B) non si legge: si parte dal briefing, senza errori.
+- **Collegamenti**: `bozze/` che è un collegamento, o un file di bozza che è un collegamento, non si leggono; scrivendo, il collegamento è sostituito da un file vero e il bersaglio non cambia; `bozza_togli` toglie il collegamento e non il bersaglio. Leggere o togliere una bozza non crea `bozze/` (`dir_bozze(true)`).
+- **La richiesta della mod che cambia lezione mentre si scrive** (il caso lasciato dal compito 7) non perde più il testo: la lezione si salva prima di chiudersi, e riaprendola il testo c'è.
+- **Prove cambiate**: in `test_guida_posti.lua` la prova «nessun testo promette quello che il compito 9 non ha ancora fatto» è tolta (la bozza c'è); al suo posto `test_vivo_bozza.lua` prova che i testi di ‹:q› e ‹:qa› dicono la verità.

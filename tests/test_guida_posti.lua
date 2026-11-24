@@ -566,22 +566,8 @@ T['ogni comando scritto nei testi della guida esiste'] = function()
   end)
 end
 
--- Rilievo 3: nessuna frase promette una bozza che non c'è (arriva col compito 9).
-T['nessun testo promette quello che il compito 9 non ha ancora fatto'] = function()
-  local vietate = { 'resta salvata', 'è salvato', 'quello che hai scritto resta', 'lo riapre' }
-  local male = {}
-  local function visita(nome, v)
-    if type(v) == 'string' then
-      for _, x in ipairs(vietate) do
-        if v:find(x, 1, true) then male[#male + 1] = nome .. ': «' .. x .. '»' end
-      end
-    elseif type(v) == 'table' then
-      for k, y in pairs(v) do visita(nome .. '.' .. tostring(k), y) end
-    end
-  end
-  visita('T', TT)
-  uguale(male, {})
-end
+-- (Fino al compito 9 una prova vietava le frasi «resta salvata» & C.: la bozza c'è, e le prove di
+-- tests/test_vivo_bozza.lua dicono che i testi di :q e :qa sono veri.)
 
 -- Rilievo 3: un controllo che non passa non è un vicolo cieco: la frase propone ‹:q›, che c'è, e
 -- seguendola si è nell'elenco.

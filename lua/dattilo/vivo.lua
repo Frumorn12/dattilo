@@ -16,6 +16,7 @@ function M.attivo() return acceso end
 local uv = vim.uv
 local ID = '^%d%d%d%-[a-z0-9%-]+$' -- gli id ammessi: per le lezioni e per le richieste
 local PASSO = 500 -- ms fra un controllo e l'altro
+local PASSO_BOZZA = 2000 -- ms: la bozza si riscrive al massimo così spesso mentre si scrive
 local MAX_VUOI, MAX_STATO = 4096, 65536 -- byte
 local JSON = { luanil = { object = true, array = true } }
 local ORDINE = { 'lezione', 'schermo', 'nuove', 'prossima', 'ultima', 'aperte', 'fatte', 'saltate', 'eseguita' }
@@ -27,6 +28,8 @@ local SCHERMI = { briefing = 'briefing', batti = 'batti', modifica = 'modifica',
 --   P         le lezioni buone ({ lezioni = { {id} } })  coda  il risultato di M.coda
 --   firma_*   com'erano i file all'ultima lettura buona  scritto  l'ultimo stato.json scritto, senza `t`
 --   aggiunto  quello che `destra` ha messo in stato.destra
+--   salvate   [id] = le righe dell'ultima bozza scritta (false: tolta); ultima_bozza  quando (ms) si è scritta
+--   riprendi  l'id della lezione che si sta riaprendo con la sua bozza
 local canale = nil
 
 local function corrente()
@@ -69,12 +72,13 @@ function M.scrivi_atomico(percorso, testo)
   return ok
 end
 
--- La cartella delle bozze, a 0700 (la crea se manca); nil se `bozze` c'è ma non è una cartella vera.
-function M.dir_bozze()
+-- La cartella delle bozze, a 0700 (la crea se manca, a meno che `senza_creare`); nil se `bozze` c'è ma
+-- non è una cartella vera.
+function M.dir_bozze(senza_creare)
   if not M.cartella then return nil end
   local d = M.cartella .. '/bozze'
   local st = uv.fs_lstat(d)
-  if not st and uv.fs_mkdir(d, 448) then st = uv.fs_lstat(d) end
+  if not st and not senza_creare and uv.fs_mkdir(d, 448) then st = uv.fs_lstat(d) end
   if not st or st.type ~= 'directory' then return nil end
   return d
 end
@@ -399,6 +403,9 @@ function M.controlla()
   aggiorna_barra()
   -- rete di sicurezza: una lezione aperta senza passare da `vivo.apri` conta fra le aperte
   if corrente() then aggiungi(canale.aperte, corrente()) end
+  -- la bozza, se è cambiata, al massimo ogni 2 secondi
+  local adesso = uv.hrtime() / 1e6
+  if corrente() and adesso - canale.ultima_bozza >= PASSO_BOZZA and M.bozza_salva(corrente()) then canale.ultima_bozza = adesso end
   M.scrivi_stato()
 end
 
@@ -413,7 +420,7 @@ end
 local function avvia_canale()
   ferma_canale()
   canale = { eseguita = 0, dalvivo = 'acceso', aperte = { set = {} }, saltate = { set = {} }, fatte = {},
-    coda = { nuove = 0 }, aggiunto = '' }
+    coda = { nuove = 0 }, aggiunto = '', salvate = {}, ultima_bozza = 0 }
   leggi_stato_vecchio()
 end
 
@@ -455,7 +462,7 @@ local function fornitore()
   return {
     comandi = function(schermata) return T['comandi_' .. schermata] or '' end,
     fine = function(s) return M.fatto(s) end,
-    su_schermata = function() end,
+    su_schermata = function(s) M.su_schermata(s) end,
     destra = destra_fornitore,
   }
 end
@@ -463,6 +470,124 @@ end
 local function parti()
   if not acceso then return end
   parti_canale()
+end
+
+---------------------------------------------------------------- la bozza (G8)
+
+-- Il testo di Batti si salva in bozze/<id>.json (0600, in una cartella 0700): mentre si scrive (al
+-- massimo ogni 2 s, dentro `controlla`), quando si esce dalla scrittura, quando si lascia la lezione
+-- e alla chiusura di Neovim. Si rimette riaprendo la lezione, e si toglie quando la lezione è fatta.
+-- Tutto passa da `dir_bozze`, `scrivi_atomico` e `leggi_sicuro`: un collegamento al posto di `bozze/`
+-- o del file non si segue.
+local MAX_BOZZA, MAX_RIGHE = 262144, 2000 -- byte e righe di una bozza che si legge
+
+local function ha_testo(righe)
+  for _, l in ipairs(righe) do
+    if l ~= '' then return true end
+  end
+  return false
+end
+
+-- Il percorso della bozza di `id`; nil per un id fuori dal modello o se `bozze` non è una cartella vera.
+-- Si crea la cartella solo per scrivere (`crea`): leggere o togliere una bozza non lascia niente in giro.
+local function file_bozza(id, crea)
+  if type(id) ~= 'string' or not id:match(ID) then return nil end
+  local dir = M.dir_bozze(not crea)
+  return dir and (dir .. '/' .. id .. '.json') or nil
+end
+
+-- La bozza di `id`: { passo, righe }, o nil se non c'è, non è un file normale, è troppo grande o non è fatta bene.
+function M.bozza_leggi(id)
+  local percorso = file_bozza(id)
+  if not percorso then return nil end
+  local testo = M.leggi_sicuro(percorso, MAX_BOZZA)
+  if not testo then return nil end
+  local ok, d = pcall(vim.json.decode, testo, JSON)
+  if not ok or type(d) ~= 'table' or d.v ~= 1 or (d.passo ~= 'batti' and d.passo ~= 'modifica') then return nil end
+  local righe = d.righe
+  if type(righe) ~= 'table' or #righe == 0 or #righe > MAX_RIGHE then return nil end
+  for _, l in ipairs(righe) do
+    -- una riga con un a capo non si può rimettere nel buffer
+    if type(l) ~= 'string' or l:find('\n', 1, true) then return nil end
+  end
+  if not ha_testo(righe) then return nil end
+  return { passo = d.passo, righe = righe }
+end
+
+-- Toglie la bozza di `id` (un collegamento al suo posto si toglie, il bersaglio no).
+function M.bozza_togli(id)
+  if canale then canale.salvate[id] = nil end
+  local percorso = file_bozza(id)
+  if percorso then uv.fs_unlink(percorso) end
+end
+
+-- Salva il testo di Batti della lezione aperta `id`. Solo nel passo batti, e solo se le righe sono
+-- cambiate dall'ultima volta; un buffer rimasto vuoto toglie la bozza (una vecchia riporterebbe testo
+-- che la persona ha cancellato). Vero se ha scritto.
+function M.bozza_salva(id)
+  local s = require('dattilo.lezione').s
+  if not (canale and s and s.L.id == id and s.passo == 'batti' and s.buf and vim.api.nvim_buf_is_valid(s.buf)) then return false end
+  local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
+  -- Con un'uccisione da fuori (SIGTERM, SIGHUP: il pannello chiuso) Neovim scarica i buffer prima di
+  -- VimLeavePre, e il buffer risponde senza righe: l'ultimo testo che batti.lua ha visto è sempre lì.
+  if #righe == 0 then
+    local st = require('dattilo.batti').stato(s.buf)
+    if st and st.prima then righe = vim.deepcopy(st.prima) end
+  end
+  if not ha_testo(righe) then
+    if canale.salvate[id] ~= false then
+      M.bozza_togli(id)
+      canale.salvate[id] = false
+    end
+    return false
+  end
+  if vim.deep_equal(righe, canale.salvate[id]) then return false end
+  local percorso = file_bozza(id, true)
+  if not percorso then return false end
+  -- i campi in quest'ordine, come nel contratto
+  local testo = '{"v":1,"passo":"batti","righe":' .. vim.json.encode(righe) .. '}'
+  if #testo > MAX_BOZZA or not M.scrivi_atomico(percorso, testo) then return false end
+  canale.salvate[id] = righe
+  return true
+end
+
+-- Si lascia la lezione aperta (per un'altra, l'elenco, l'attesa): il suo testo si salva prima di chiuderla.
+local function lascia()
+  local s = require('dattilo.lezione').s
+  if canale and s then guida.protetta(M.bozza_salva, s.L.id) end
+end
+
+-- Il fornitore, in fondo a ogni schermata: se si sta riaprendo la lezione con la sua bozza e il buffer è
+-- vuoto, le righe tornano, il cursore va in fondo e la guida dice «Ripreso». `cambio_voluto` prima di
+-- ridisegnare: senza, in NORMAL la guida direbbe ‹u›, che annullerebbe la ripresa. Solo la riapertura
+-- (`riprendi`): un `:e!` ricomincia da capo e non rimette la bozza.
+function M.su_schermata(s)
+  if not (canale and s.passo == 'batti' and canale.riprendi == s.L.id) then return end
+  canale.riprendi = nil
+  local b = M.bozza_leggi(s.L.id)
+  if not (b and b.passo == 'batti' and s.buf and vim.api.nvim_buf_is_valid(s.buf)) then return end
+  local vuoto = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
+  if not (#vuoto == 1 and vuoto[1] == '') then return end
+  vim.api.nvim_buf_set_lines(s.buf, 0, -1, false, b.righe)
+  vim.api.nvim_win_set_cursor(require('dattilo.schermo').finestra(), { #b.righe, #b.righe[#b.righe] })
+  canale.salvate[s.L.id] = b.righe
+  require('dattilo.batti').aggiorna(s.buf)
+  guida.cambio_voluto(s.buf)
+  guida.avviso(T.ripreso)
+end
+
+local function crea_autocomandi_bozza()
+  local g = vim.api.nvim_create_augroup('dattilo_bozza', { clear = true })
+  -- uscendo dalla scrittura (con ‹Ctrl-c› InsertLeave non scatta, ModeChanged sì)
+  vim.api.nvim_create_autocmd('ModeChanged', { group = g, callback = function()
+    local da, a = vim.v.event.old_mode or '', vim.v.event.new_mode or ''
+    if da:match('^[iR]') and not a:match('^[iR]') then lascia() end
+  end })
+  -- alla chiusura, anche quando il pannello si chiude da fuori (SIGHUP, SIGTERM): il testo e lo stato
+  vim.api.nvim_create_autocmd('VimLeavePre', { group = g, callback = function()
+    pcall(lascia)
+    pcall(M.scrivi_stato)
+  end })
 end
 
 ---------------------------------------------------------------- i comandi :salta, :ultima ed :elenco
@@ -497,6 +622,7 @@ function M.avvia(cartella)
   avvia_canale()
   guida.accendi(fornitore())
   crea_comandi()
+  crea_autocomandi_bozza()
   -- all'avvio Neovim, finito init.lua, porta il fuoco sulla prima finestra, che è quella del
   -- riquadro: si parte a Neovim già avviato, così il fuoco resta sulla lezione
   if vim.v.vim_did_enter == 1 then return parti() end
@@ -508,17 +634,28 @@ function M.ferma()
   acceso = false
   ferma_canale()
   togli_comandi()
+  pcall(vim.api.nvim_del_augroup_by_name, 'dattilo_bozza')
   guida.spegni()
 end
 
 function M.apri(id)
+  lascia()
   local pacchetti = require('dattilo.pacchetti')
   pacchetti.dimentica()
   local P = pacchetto()
   for n, L in ipairs(P and P.lezioni or {}) do
     if L.id == id and lezione_valida(id) then
-      require('dattilo.lezione').apri(PACCHETTO, n)
-      return nota_aperta(id)
+      local lezione = require('dattilo.lezione')
+      lezione.apri(PACCHETTO, n)
+      nota_aperta(id)
+      -- con una bozza di Batti si va dritti a Batti: `su_schermata` rimette il testo
+      local b = canale and lezione.s and lezione.s.L.id == id and M.bozza_leggi(id)
+      if b and b.passo == 'batti' then
+        canale.riprendi = id
+        lezione.batti(lezione.s)
+        canale.riprendi = nil
+      end
+      return
     end
   end
   M.elenco()
@@ -530,6 +667,7 @@ end
 -- Niente da fare finché Claude non cambia un'altra funzione: la prima lezione che arriva si apre da sola.
 -- `motivo`: perché non si apre niente (i dati fuori dalla cartella), in «Controllo».
 function M.attesa(motivo)
+  lascia()
   local schermo, stato, ui = require('dattilo.schermo'), require('dattilo.stato'), require('dattilo.ui')
   require('dattilo.lezione').chiudi()
   require('dattilo.dojo').chiudi()
@@ -581,6 +719,7 @@ function M.fatto(s)
   local ris = s.risultato or { wpm = 0, precisione = 100, tempo_ms = 0 }
   require('dattilo.progressi').registra(L.pacchetto .. '/' .. L.id,
     { wpm = ris.wpm, precisione = ris.precisione, tempo_ms = ris.tempo_ms, tasti_modifica = s.tasti_modifica })
+  M.bozza_togli(L.id)
   local schermo, stato = require('dattilo.schermo'), require('dattilo.stato')
   stato.file, stato.metriche = 'lezione ' .. L.numero, function() return { 'completata' } end
   aggiorna_dati() -- la lezione appena fatta è già fra le fatte: la coda di adesso è quella giusta
@@ -667,6 +806,7 @@ local ns_scelta = vim.api.nvim_create_namespace('dattilo_elenco')
 -- La riga scelta ha lo sfondo (non il segno ▸, che è delle lezioni da fare); ‹Invio› apre quella
 -- dov'è il cursore, anche dopo un clic.
 function M.elenco()
+  lascia()
   local schermo, stato, ui = require('dattilo.schermo'), require('dattilo.stato'), require('dattilo.ui')
   require('dattilo.lezione').chiudi()
   require('dattilo.dojo').chiudi()

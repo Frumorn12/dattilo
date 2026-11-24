@@ -76,16 +76,15 @@ M.controllo_errore = 'Node non accetta il codice: %s.'
 M.controllo_muto = 'il controllo non è riuscito'
 M.ripreso = 'Ripreso: qui c\'è il testo che avevi scritto l\'altra volta.'
 M.non_si_apre = 'Questa lezione non si apre: %s.'
--- (il testo non è «salvato»: la bozza arriva col compito 9; qui si dice solo che non è stato toccato)
-M.errore_dattilo = 'Errore di dattilo: %s. Il tuo testo non è cambiato.'
+M.errore_dattilo = 'Errore di dattilo: %s. Il tuo testo è salvato.'
 M.ctrl_z = 'Ctrl-z in Neovim mette in pausa il programma, e il pannello resterebbe fermo: qui è spento. Continua da dove eri.'
 
--- «Comandi». «resta salvata» (la bozza) arriva col compito 9: fino ad allora ‹:q› dice che il testo non si conserva.
-M.comandi_batti = '‹:w› ‹Invio›: salvi e node controlla · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco; quello che hai scritto qui non si conserva · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
+-- «Comandi»
+M.comandi_batti = '‹:w› ‹Invio›: salvi e node controlla · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco; resta salvata · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
 M.comandi_testo = '‹q›: vai all\'elenco delle lezioni · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
 M.comandi_modifica = '‹:e!› ‹Invio›: ricominci la modifica da capo · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco · ‹:salta› ‹Invio›: passi alla prossima'
 M.comandi_fatto = '‹r›: rifai questa lezione · ‹q›: vai all\'elenco delle lezioni · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
-M.comandi_elenco = '‹:ultima› ‹Invio›: apri l\'ultima modifica di Claude · ‹:q› ‹Invio›: chiudi dattilo'
+M.comandi_elenco = '‹:ultima› ‹Invio›: apri l\'ultima modifica di Claude · ‹:q› ‹Invio›: chiudi dattilo (quello che hai scritto resta, e «Rifallo tu» lo riapre)'
 M.comandi_attesa = '‹:elenco› ‹Invio›: vedi le lezioni già arrivate · ‹:q› ‹Invio›: chiudi dattilo'
 -- Non sono nella 3.3: «Comandi» quando il cursore è in un altro buffer (il %d è il numero del codice)
 M.comandi_altro = '‹:b%d› ‹Invio›: torni al codice della lezione, com\'era'
@@ -186,14 +185,13 @@ M.frecce_n = M.posti.frecce_n.testo
 -- Le spiegazioni dei comandi noti (3.4, riga 3)
 M.spiega_comando = {
   w = 'salvi e node controlla il codice',
-  -- la bozza (che fa restare il testo) arriva col compito 9
   q = 'lasci la lezione e torni all\'elenco',
-  q_scritto = 'lasci la lezione e torni all\'elenco; quello che hai scritto qui non si conserva',
+  q_scritto = 'lasci la lezione, che resta salvata, e torni all\'elenco',
   q_finestra = 'chiudi questa finestra e torni al codice',
-  q_esci = 'chiudi dattilo',
+  q_esci = 'chiudi dattilo; quello che hai scritto resta',
   -- Non è nella 3.4: :qa vuol dire «esci da tutto» (come in Vim), e qui chiude dattilo del tutto
   qa = 'chiudi dattilo del tutto (qa vuol dire «esci da tutto»)',
-  qa_scritto = 'chiudi dattilo del tutto (qa vuol dire «esci da tutto»); quello che hai scritto qui non si conserva',
+  qa_scritto = 'chiudi dattilo del tutto (qa vuol dire «esci da tutto»); quello che hai scritto resta salvato',
   b = 'torni al codice della lezione, com\'era',
   salta = 'passi alla prossima lezione',
   ultima = 'vai all\'ultima modifica di Claude',
