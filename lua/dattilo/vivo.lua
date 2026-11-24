@@ -223,7 +223,7 @@ local function richiesta_valida(v)
   if type(v) ~= 'table' or v.v ~= 1 then return false end
   local t = v.t
   if t ~= nil and not (type(t) == 'number' and t >= 0 and t < 2 ^ 53 and t == math.floor(t)) then return false end
-  if v.azione ~= nil and type(v.azione) ~= 'string' then return false end
+  if v.azione ~= nil and v.azione ~= 'apri' and v.azione ~= 'ultima' then return false end
   if v.lezione ~= nil and type(v.lezione) ~= 'string' then return false end
   if v.dalvivo ~= nil and type(v.dalvivo) ~= 'string' then return false end
   if v.azione ~= nil and t == nil then return false end
@@ -254,15 +254,29 @@ local function apri_da_fuori(id)
   M.apri(id)
 end
 
+-- È il momento di cambiare schermata da soli? No se la persona ha qualcosa a metà che una schermata
+-- nuova romperebbe: la riga dei comandi (anche con :w scritto), un operatore in attesa (d), la finestra dei
+-- comandi (q:), «Premi INVIO» o un comando esterno. Sono stati di pochi secondi: la richiesta aspetta il
+-- giro dopo, senza dire niente (il contratto: «se dattilo è occupato, legge al giro dopo»).
+local function e_il_momento()
+  local modo = vim.api.nvim_get_mode().mode
+  if modo:match('^[cr!]') or modo:sub(1, 2) == 'no' then return false end
+  return vim.fn.getcmdwintype() == ''
+end
+
 local function esegui_richiesta(v)
   -- «dalvivo» vale a ogni lettura, anche senza una richiesta nuova
   if v.dalvivo == 'acceso' or v.dalvivo == 'spento' or v.dalvivo == 'finita' then canale.dalvivo = v.dalvivo end
   if v.azione == nil or v.t <= canale.eseguita then return end
+  -- non è il momento: la richiesta non si consuma (`eseguita` resta com'era) e il file si rilegge al giro dopo
+  if not e_il_momento() then
+    canale.firma_vuoi = nil
+    return
+  end
   canale.eseguita = v.t
   if v.azione == 'apri' then
     -- un id fuori modello, o una lezione che non c'è: niente (e nessuno è buttato fuori dalla sua lezione)
-    local st = v.lezione:match(ID) and uv.fs_lstat(dir_pacchetto() .. '/lezioni/' .. v.lezione .. '.md')
-    if st and st.type == 'file' and v.lezione ~= corrente() then apri_da_fuori(v.lezione) end
+    if lezione_valida(v.lezione) and v.lezione ~= corrente() then apri_da_fuori(v.lezione) end
   elseif v.azione == 'ultima' then
     local id = canale.coda.ultima
     if id and id ~= corrente() then apri_da_fuori(id) end
@@ -352,7 +366,7 @@ end
 
 -- In «Attesa», appena c'è una lezione nuova si apre.
 local function apri_da_attesa()
-  if canale.dati_ok and not corrente() and nome_schermo() == 'attesa' and canale.coda.prossima then
+  if canale.dati_ok and not corrente() and nome_schermo() == 'attesa' and canale.coda.prossima and e_il_momento() then
     apri_da_fuori(canale.coda.prossima)
     ricalcola_coda()
   end
@@ -383,6 +397,8 @@ function M.controlla()
   apri_da_attesa()
   ridisegna_attesa()
   aggiorna_barra()
+  -- rete di sicurezza: una lezione aperta senza passare da `vivo.apri` conta fra le aperte
+  if corrente() then aggiungi(canale.aperte, corrente()) end
   M.scrivi_stato()
 end
 
@@ -404,18 +420,25 @@ end
 -- Dopo VimEnter: una richiesta più nuova di quella eseguita vince; altrimenti la prima lezione non
 -- fatta e non saltata; altrimenti «Attesa». Poi il timer.
 local function parti_canale()
-  aggiorna_dati()
-  local v = leggi_vuoi()
-  if v then esegui_richiesta(v) end
-  -- niente lezione e niente elenco: la richiesta non ha aperto niente (un elenco con l'avviso, sì)
-  if not corrente() and require('dattilo.stato').file ~= 'elenco' then
-    local prima = canale.dati_ok and canale.coda.prossima
-    if prima then M.apri(prima) else M.attesa(not canale.dati_ok and T.canale.dati_fuori or nil) end
-  end
-  ricalcola_coda()
+  -- un errore qui non arriva alla riga dei messaggi: va nel riquadro, e il timer parte lo stesso
+  local ok, e = pcall(function()
+    aggiorna_dati()
+    local v = leggi_vuoi()
+    if v then esegui_richiesta(v) end
+    -- niente lezione e niente elenco: la richiesta non ha aperto niente (un elenco con l'avviso, sì)
+    if not corrente() and require('dattilo.stato').file ~= 'elenco' then
+      local prima = canale.dati_ok and canale.coda.prossima
+      if prima then M.apri(prima) else M.attesa(not canale.dati_ok and T.canale.dati_fuori or nil) end
+    end
+    ricalcola_coda()
+    aggiorna_barra()
+    M.scrivi_stato()
+  end)
   canale.pronto = true
-  aggiorna_barra()
-  M.scrivi_stato()
+  if not ok then
+    canale.ultimo_errore = e
+    guida.protetta(error, e, 0)
+  end
   local timer = uv.new_timer()
   canale.timer = timer
   timer:start(PASSO, PASSO, vim.schedule_wrap(function()

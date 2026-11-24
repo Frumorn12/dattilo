@@ -569,7 +569,7 @@ T['i testi del canale stanno in guida_testi'] = function()
   uguale(TT.canale.finita, ' · sessione finita: niente lezioni nuove')
   uguale(TT.canale.spenta, ' · Dal vivo spento: niente lezioni nuove')
   uguale(TT.canale.dati_fuori, 'la cartella dei dati non è dentro quella di Rifallo tu')
-  uguale(TT.canale.assente, 'la lezione non c\'è')
+  uguale(TT.canale.assente, 'il file non c\'è più')
   uguale(TT.canale.attesa, 'Aspetto la prossima modifica di Claude a un file JavaScript…')
 end
 

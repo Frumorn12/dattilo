@@ -99,7 +99,7 @@ M.canale = {
   finita = ' · sessione finita: niente lezioni nuove',
   spenta = ' · Dal vivo spento: niente lezioni nuove',
   dati_fuori = 'la cartella dei dati non è dentro quella di Rifallo tu',
-  assente = 'la lezione non c\'è',
+  assente = 'il file non c\'è più',
   attesa = 'Aspetto la prossima modifica di Claude a un file JavaScript…',
 }
 

@@ -45,7 +45,12 @@ function M.avvia(o)
   -- guardia: se il figlio resta bloccato, lo si ferma e la rpcrequest esce con errore
   self.guardia = vim.uv.new_timer()
   local pid = self.pid
-  self.guardia:start(o.tetto or 15000, 0, function() pcall(vim.uv.kill, pid, 'sigterm') end)
+  self.guardia:start(o.tetto or 15000, 0, function()
+    pcall(vim.uv.kill, pid, 'sigterm')
+    -- un figlio fermo dentro una chiamata di sistema (un `open` su un FIFO) non vede SIGTERM: dopo un po' si passa a SIGKILL
+    self.guardia2 = vim.uv.new_timer()
+    self.guardia2:start(2000, 0, function() pcall(vim.uv.kill, pid, 'sigkill') end)
+  end)
   local ok, err = pcall(function()
     if o.righe then self:lua('vim.o.lines = ...', o.righe) end
   end)
@@ -193,6 +198,7 @@ function F:chiudi()
   if self.chiuso then return end
   self.chiuso = true
   if self.guardia then self.guardia:stop() self.guardia:close() self.guardia = nil end
+  if self.guardia2 then self.guardia2:stop() self.guardia2:close() self.guardia2 = nil end
   pcall(vim.fn.jobstop, self.canale)
   local r = vim.fn.jobwait({ self.canale }, 3000)[1]
   if r == -1 then
