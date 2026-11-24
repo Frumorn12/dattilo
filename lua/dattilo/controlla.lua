@@ -24,7 +24,8 @@ local function prima_riga(r)
   return (d:match('[^\n]*SyntaxError[^\n]*') or d:match('[^\n]*[Ee]rror[^\n]*') or d:match('[^\n]+') or ('codice ' .. tostring(r.codice)))
 end
 
-local function prova_soluzione(m)
+-- Rifà i tasti di una modifica sul testo di partenza: ritorna le righe che ne escono, o nil e l'errore.
+function M.prova_soluzione(m)
   local buf = vim.api.nvim_create_buf(true, true)
   vim.api.nvim_set_current_buf(buf)
   require('dattilo.batti').opzioni(buf) -- le stesse opzioni del buffer della lezione
@@ -94,7 +95,7 @@ function M.riempi(testo, nome)
     local m = L.modifiche[k]
     if not m then break end
     if not m.blocco or not m.par_riga then return nil, { { file = nome, riga = 1, msg = 'modifica ' .. k .. ': servono il blocco ``` e la riga par: (anche par: 0)' } } end
-    local risultato, e = prova_soluzione(m)
+    local risultato, e = M.prova_soluzione(m)
     if not risultato then return nil, { { file = nome, riga = m.par_riga, msg = 'modifica ' .. k .. ': la soluzione dà errore: ' .. tostring(e) } } end
     local cambiate = {}
     for i = 1, math.max(#risultato, #m.partenza) do
@@ -112,7 +113,7 @@ function M.riempi(testo, nome)
   end
   local L = formato.lezione(table.concat(righe, '\n'), nome, 1, { riempi = true })
   if L and L.rompi and L.rompi.soluzione and L.rompi.blocco then
-    local rotto, e = prova_soluzione({ partenza = L.rompi.ripara, pos = { 0, 0 }, soluzione = L.rompi.soluzione })
+    local rotto, e = M.prova_soluzione({ partenza = L.rompi.ripara, pos = { 0, 0 }, soluzione = L.rompi.soluzione })
     if not rotto then return nil, { { file = nome, riga = L.rompi.blocco.riga, msg = 'Rompi: la soluzione dà errore: ' .. tostring(e) } } end
     local nuove = vim.list_slice(righe, 1, L.rompi.blocco.riga)
     vim.list_extend(nuove, rotto)
@@ -145,7 +146,7 @@ function M.pacchetto(dir, solo)
       riga('errore', nome .. ': uscita diversa da quella attesa: ' .. vim.inspect(r.uscita))
     else riga('ok', nome .. ': Batti gira') end
     for i, m in ipairs(L.modifiche) do
-      local righe, e = prova_soluzione(m)
+      local righe, e = M.prova_soluzione(m)
       local tasti = esercizio.conta_tasti(m.soluzione)
       if not righe then riga('errore', nome .. ': modifica ' .. i .. ': la soluzione dà errore: ' .. tostring(e))
       elseif not vim.deep_equal(righe, m.obiettivo) then riga('errore', nome .. ': modifica ' .. i .. ': la soluzione non arriva all\'obiettivo')

@@ -11,10 +11,10 @@ local function env_finto()
   }
 end
 
-T['vivo --dove stampa vivo 1 e la radice'] = function()
+T['vivo --dove stampa vivo 2 e la radice'] = function()
   local r = vim.system({ RADICE .. '/bin/dattilo', 'vivo', '--dove' }, { env = env_finto(), text = true }):wait()
   uguale(r.code, 0, r.stderr)
-  uguale(vim.json.decode(r.stdout), { vivo = 1, radice = RADICE })
+  uguale(vim.json.decode(r.stdout), { vivo = 2, radice = RADICE })
 end
 
 T['vivo senza cartella esce con 1 e dice come si usa'] = function()

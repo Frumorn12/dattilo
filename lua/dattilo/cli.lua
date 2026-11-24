@@ -173,9 +173,134 @@ local function comando_riempi(args)
   return 0
 end
 
--- dattilo vivo --dove: la mod chiede se c'è, e dove sta
+-- dattilo vivo --prova <lezione.md>: i tasti di ogni Modifica arrivano all'obiettivo? Se sì, riscrive le righe par:.
+-- Scrive una riga JSON e esce con 0 (tutto va), 1 (lezione rifiutata) o 2 (uso sbagliato o file illeggibile).
+local USO_PROVA = 'uso: dattilo vivo --prova <lezione.md>'
+local TETTO_PROVA = 9000 -- ms: la mod aspetta al massimo 10 s, e una soluzione che non finisce va fermata prima
+
+-- Le chiavi stanno nell'ordine del contratto: vim.json.encode non lo garantisce.
+local function json_si(tasti)
+  local modifiche = {}
+  for i, n in ipairs(tasti) do modifiche[i] = vim.json.encode({ tasti = n }) end
+  return '{"ok":true,"modifiche":[' .. table.concat(modifiche, ',') .. ']}'
+end
+
+local function json_no(motivo) return '{"ok":false,"motivo":' .. vim.json.encode(motivo) .. '}' end
+
+-- Il testo del file e le sue informazioni, o nil se non è un file normale che si legge (un link non si segue).
+local function leggi_lezione(file)
+  local st = vim.uv.fs_lstat(file)
+  if not st or st.type ~= 'file' then return nil end
+  local f = io.open(file, 'rb')
+  if not f then return nil end
+  local testo = f:read('*a')
+  f:close()
+  return testo, st
+end
+
+-- Riscrive le righe par: in modo atomico: un file nuovo nella stessa cartella (il nome non finisce in .md, perché
+-- dattilo vivo legge lezioni/*.md), con il modo di prima, e poi fs_rename. Ritorna true, o false e il motivo.
+local function riscrivi_par(file, testo, st, L, tasti)
+  local righe = vim.split(testo, '\n', { plain = true })
+  local cambiato = false
+  for i, m in ipairs(L.modifiche) do
+    local vecchia = righe[m.par_riga]
+    if not vecchia or not vecchia:match('^par:') then return false, 'modifica ' .. i .. ': non trovo la riga par: da riscrivere' end
+    local nuova = 'par: ' .. tasti[i] .. (vecchia:match('\r$') or '')
+    if nuova ~= vecchia then righe[m.par_riga] = nuova cambiato = true end
+  end
+  if not cambiato then return true end
+  local contenuto = table.concat(righe, '\n')
+  local tmp = string.format('%s.par-%d-%d', file, vim.uv.os_getpid(), vim.uv.hrtime() % 1000000000)
+  local fd, e = vim.uv.fs_open(tmp, 'wx', tonumber('600', 8))
+  if not fd then return false, 'non riesco a riscrivere il par: ' .. tostring(e) end
+  local scritti, e2 = vim.uv.fs_write(fd, contenuto)
+  vim.uv.fs_close(fd)
+  local ok, e3 = scritti == #contenuto, e2
+  if ok then ok, e3 = vim.uv.fs_chmod(tmp, st.mode % 4096) end
+  if ok then ok, e3 = vim.uv.fs_rename(tmp, file) end
+  if not ok then
+    vim.uv.fs_unlink(tmp)
+    return false, 'non riesco a riscrivere il par: ' .. tostring(e3)
+  end
+  return true
+end
+
+-- Il lavoro vero: formato, i tasti di ogni Modifica, il par. Ritorna l'uscita e la riga JSON.
+local function prova_lezione(file, testo, st)
+  local L, err = require('dattilo.formato').lezione(testo, vim.fn.fnamemodify(file, ':t'), 1)
+  if not L then
+    local parti = {}
+    for _, x in ipairs(err) do parti[#parti + 1] = 'riga ' .. tostring(x.riga) .. ': ' .. x.msg end
+    return 1, json_no(table.concat(parti, '; '))
+  end
+  local controlla, esercizio = require('dattilo.controlla'), require('dattilo.esercizio')
+  local tasti = {}
+  for i, m in ipairs(L.modifiche) do
+    local righe, e = controlla.prova_soluzione(m)
+    if not righe then return 1, json_no('modifica ' .. i .. ': la soluzione dà errore: ' .. tostring(e)) end
+    if not vim.deep_equal(righe, m.obiettivo) then
+      local n = 1
+      while n <= math.max(#righe, #m.obiettivo) and righe[n] == m.obiettivo[n] do n = n + 1 end
+      return 1, json_no('modifica ' .. i .. ': i tasti non arrivano all\'obiettivo (riga ' .. n .. ' diversa)')
+    end
+    tasti[i] = esercizio.conta_tasti(m.soluzione)
+  end
+  local ok, motivo = riscrivi_par(file, testo, st, L, tasti)
+  if not ok then return 1, json_no(motivo) end
+  return 0, json_si(tasti)
+end
+
+-- L'ultima riga dello stdout che è una risposta della prova ({"ok":...}), con la sua tabella.
+local function riga_di_risposta(uscita)
+  local righe = vim.split(uscita or '', '\n', { plain = true, trimempty = true })
+  for i = #righe, 1, -1 do
+    local ok, d = pcall(vim.json.decode, righe[i])
+    if ok and type(d) == 'table' and type(d.ok) == 'boolean' then return righe[i], d end
+  end
+end
+
+-- I tasti si rifanno in un Neovim figlio (vivo-prova-figlio), dentro bwrap quando c'è, come fa controlla: con un tetto
+-- di tempo, e qualunque cosa succeda dentro, fuori esce una sola riga JSON.
+local function prova_in_figlio(assoluto)
+  local compila = require('dattilo.compila')
+  local cmd = { 'nvim', '--clean', '--headless', '-l', radice .. '/lua/dattilo/cli.lua', 'vivo-prova-figlio', assoluto }
+  if compila.sandbox() then
+    local cartella = vim.fs.dirname(assoluto)
+    local a = compila.argomenti_sandbox({ cartella }, { radice }, { 'nvim' })
+    vim.list_extend(a, { '--chdir', cartella, '--' })
+    vim.list_extend(a, cmd)
+    cmd = a
+  end
+  local tetto = tonumber(vim.env.DATTILO_PROVA_TETTO) or TETTO_PROVA
+  local esito = vim.system(cmd, { text = true, timeout = tetto }):wait()
+  if esito.code == 124 then
+    return 1, json_no('la prova ha superato il tempo massimo di ' .. string.format('%g', tetto / 1000) .. ' secondi ed è stata fermata')
+  end
+  local riga, d = riga_di_risposta(esito.stdout)
+  if riga and esito.code <= 2 and (esito.code == 0) == d.ok then return esito.code, riga end
+  local detto = (esito.stderr or ''):match('[^\n]+')
+  return 1, json_no('la prova non è riuscita (uscita ' .. tostring(esito.code) .. (esito.signal ~= 0 and (', segnale ' .. esito.signal) or '')
+    .. ')' .. (detto and (': ' .. detto:sub(1, 200)) or ''))
+end
+
+-- vivo-prova: controlla l'uso e il file, e lancia il figlio. vivo-prova-figlio: il lavoro vero, dentro la sandbox.
+local function comando_vivo_prova(args, figlio)
+  local function esci(code, riga) scrivi(riga) return code end
+  local file = args[2]
+  if args[3] or not file or file == '' then return esci(2, json_no(USO_PROVA)) end
+  local testo, st = leggi_lezione(file)
+  if not testo then return esci(2, json_no(USO_PROVA)) end
+  local assoluto = vim.fn.fnamemodify(file, ':p')
+  if not figlio then return esci(prova_in_figlio(assoluto)) end
+  local ok, code, riga = pcall(prova_lezione, assoluto, testo, st)
+  if not ok then return esci(1, json_no('la prova si è fermata: ' .. tostring(code))) end
+  return esci(code, riga)
+end
+
+-- dattilo vivo --dove: la mod chiede se c'è, e dove sta. vivo = 2: sa anche fare --prova
 local function comando_vivo_dove()
-  scrivi(vim.json.encode({ vivo = 1, radice = radice }))
+  scrivi(vim.json.encode({ vivo = 2, radice = radice }))
   return 0
 end
 
@@ -186,6 +311,8 @@ function M.main(args)
   elseif c == 'pacchetti' then return comando_pacchetti()
   elseif c == 'nuovo' then return comando_nuovo(args)
   elseif c == 'controlla' then return comando_controlla(args)
+  elseif c == 'vivo-prova' then return comando_vivo_prova(args, false)
+  elseif c == 'vivo-prova-figlio' then return comando_vivo_prova(args, true)
   elseif c == 'riempi' then return comando_riempi(args)
   elseif c == 'vivo-dove' then return comando_vivo_dove() end
   scrivi('uso: dattilo [importa <file> | esporta <id> [file] | pacchetti | nuovo <cartella> | controlla [--tip] <cartella> [lezione] | riempi <lezione.md>]')
