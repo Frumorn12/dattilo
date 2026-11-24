@@ -90,6 +90,9 @@ M.comandi_attesa = '‹:q› ‹Invio›: chiudi dattilo'
 M.comandi_altro = '‹:b%d› ‹Invio›: torni al codice della lezione, com\'era'
 -- Non è nella 3.3: «Comandi» in una finestra in più (‹:w› nell'aiuto dà un errore, ‹q› registra una macro)
 M.comandi_finestra = '‹:q› ‹Invio›: chiudi questa finestra e torni al codice'
+-- Non è nella 3.3: «Comandi» nella spiegazione. Uscire da qui non segna la lezione: la segna il riepilogo.
+-- ATTENZIONE al merge: la spiegazione legge questa e NON comandi_testo; ogni comando che si aggiunge a comandi_testo va messo anche qui.
+M.comandi_spiegazione = '‹q›: vai all\'elenco delle lezioni, ma la lezione non conta come fatta finché non arrivi al riepilogo · ‹Invio›: vai al riepilogo'
 
 -- Modifica (tempo B)
 M.mod_parole = 'Sei in NORMAL: qui i tasti spostano il cursore e cambiano il testo. A parole: %s Se ti blocchi, fra 15 secondi senza tasti qui compaiono i tasti esatti, uno alla volta.'
@@ -122,7 +125,7 @@ M.posti = {
   divisa = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due (l\'ha fatto Ctrl-w o un comando come :split). ‹:q› ‹Invio›: chiudi questa finestra e torni al codice.' },
   -- Non è nella 3.4: si scrive in una finestra in più. In INSERT ‹:› è una lettera: prima ‹Esc›.
   divisa_i = { titolo = 'FINESTRA IN PIÙ', testo = 'Stai scrivendo in un\'altra finestra, non nel codice della lezione. ‹Esc›: smetti di scrivere; poi ‹:q› ‹Invio›: chiudi questa finestra e torni al codice.' },
-  divisa_principale = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo la finestra del codice; il riquadro torna da solo.' },
+  divisa_principale = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo questa finestra; il riquadro torna da solo.' },
   frecce = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹Esc›: smetti di scrivere; poi ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra; poi ‹A›: torni a scrivere in fondo alla riga.' },
   -- in NORMAL ‹Esc› non fa niente: si comincia da ‹A›
   frecce_n = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹A›: torni a scrivere in fondo alla riga. Per spostarti, in NORMAL: ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra.' },
@@ -138,6 +141,11 @@ M.posti = {
   -- Cambiato costruendo: ‹Ctrl-\› ‹Ctrl-n› porta in NORMAL da ogni modalità, anche da un terminale,
   -- dove ‹Esc› va al programma e non a Neovim.
   sconosciuto = { titolo = 'POSTO SCONOSCIUTO', testo = 'Sei in una modalità di Neovim che la guida non conosce (in basso: %s). ‹Ctrl-\\› ‹Ctrl-n›: torni in NORMAL, da qualunque modalità (anche da un terminale, dove Esc non basta).' },
+  -- Non sono nella 3.4: la riga dei comandi vuota in un posto sbagliato (un altro file, una finestra in più) continua
+  -- la strada che la frase del posto aveva indicato; il %s è un cmd_finisci col comando che riporta al codice.
+  cmd_vuota_ritorno = { titolo = 'RIGA DEI COMANDI', testo = 'Stai scrivendo un comando. %s ‹Esc›: annulli e torni dov\'eri.' },
+  -- Non è nella 3.4: :q o :qa dalla spiegazione. La lezione si segna solo al riepilogo: uscendo da qui non conta.
+  cmd_noto_spiegazione = { titolo = 'RIGA DEI COMANDI', testo = '‹Invio›: esegui :%s, cioè %s. Ma la lezione non conta come fatta finché non arrivi al riepilogo. ‹Esc›: annulli e resti qui; poi ‹Invio›: vai al riepilogo e la finisci.' },
 }
 
 -- Un pezzo di cmd_parziale: i tasti che mancano, il comando intero e cosa fa.

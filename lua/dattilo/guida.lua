@@ -38,9 +38,6 @@ for _, nome in ipairs({ 'qa', 'qall', 'quitall', 'wqa', 'wqall', 'xa', 'xall' })
 local ESPANSI = { DattiloEsci = 'q', ['DattiloEsci!'] = 'q', DattiloEsciTutto = 'qa', ['DattiloEsciTutto!'] = 'qa' }
 local COMANDO_DI = { salta = 'DattiloSalta', ultima = 'DattiloUltima', elenco = 'DattiloElenco', ['e!'] = 'DattiloRicomincia' }
 local SELEZIONE = { v = true, V = true, ['\22'] = true, s = true, S = true, ['\19'] = true }
--- «Comandi» di un posto sbagliato che ha una sola uscita (la sezione normale offrirebbe cose che lì non valgono)
-local COMANDI_POSTO = { altro_buffer = 'comandi_altro', altro_buffer_i = 'comandi_altro', terminale = 'comandi_altro',
-  aiuto = 'comandi_finestra', divisa = 'comandi_finestra', divisa_i = 'comandi_finestra' }
 
 -- La finestra `win` è «in più» (3.4, riga 12): non è la principale della lezione, né il riquadro,
 -- né l'OBIETTIVO, né una galleggiante.
@@ -76,6 +73,18 @@ local function posizione()
       if e_in_piu(w) then return 'con_altre' end
     end
   end
+  return nil
+end
+
+-- «Comandi» di un posto sbagliato che ha una sola uscita: in un altro buffer il ritorno a :b e il numero
+-- del codice, in una finestra in più :q. La sezione della schermata offrirebbe ‹:w›, che lì scrive il file
+-- sbagliato o dà un errore, e ‹:q›, che lascia la lezione. Vale in ogni momento in quel posto, anche
+-- mentre si scrive il comando (la riga dei comandi, la finestra dei comandi): «Comandi» e «Adesso»
+-- non si contraddicono. nil fuori da quei posti.
+local function comandi_luogo()
+  local pos, atteso = posizione()
+  if pos == 'altro' then return T.f('comandi_altro', atteso) end
+  if pos == 'in_piu' then return T.comandi_finestra end
   return nil
 end
 
@@ -121,8 +130,24 @@ end
 
 local function posto_di(nome, ...)
   local titolo, testo = T.posto(nome, ...)
-  local c = COMANDI_POSTO[nome]
-  return { titolo = titolo, testo = testo, comandi = c and T.f(c, ...) or nil }
+  return { titolo = titolo, testo = testo, comandi = comandi_luogo() }
+end
+
+-- I tasti che mancano a `riga` per scrivere il comando `nome`: «‹b› ‹4›: finisci di scrivere :b4; poi ‹Invio›: …».
+local function finisci(nome, riga, pos)
+  local tasti = {}
+  for ch in nome:sub(#riga + 1):gmatch('.') do tasti[#tasti + 1] = '‹' .. ch .. '›' end
+  return T.f('cmd_finisci', table.concat(tasti, ' '), nome, spiega(nome, pos))
+end
+
+-- Dalla spiegazione :q e :qa lasciano la lezione, e la lezione si segna come fatta solo al riepilogo
+-- (lezione.fine): uscendo da qui non conta, e la frase lo dice prima dell'Invio. In una finestra in più
+-- :q chiude solo quella (nessuna frase), ma :qa chiude dattilo lo stesso.
+local function perde_il_fatto(nome, pos)
+  local s = lezione().s
+  if not s or s.passo ~= 'spiegazione' then return false end
+  if SINONIMI_QA[nome] then return true end -- :qa chiude dattilo anche da una finestra in più
+  return (SINONIMI_Q[nome] and pos ~= 'in_piu' and require('dattilo.stato').schermo ~= 'home') or false
 end
 
 -- La riga dei comandi (3.4, righe 2-4): vuota, un comando che vale qui, a metà di uno, o un altro.
@@ -130,10 +155,16 @@ local function nella_riga_dei_comandi(riga, testo_comandi, pos, atteso)
   local validi = comandi_validi(testo_comandi, pos, atteso)
   riga = vim.trim(riga)
   riga = ESPANSI[riga] or riga
-  if riga == '' then return posto_di(validi.w and 'cmd_vuota' or 'cmd_vuota_testo') end
+  riga = (riga:gsub('^b%s+(%d+)$', 'b%1')) -- :b 4 vale come :b4
+  if riga == '' then
+    -- in un posto sbagliato la strada è quella che la frase del posto ha indicato: i tasti che mancano al comando di ritorno
+    local via = (pos == 'altro' and 'b' .. atteso) or (pos == 'in_piu' and 'q') or nil
+    if via then return posto_di('cmd_vuota_ritorno', finisci(via, '', pos)) end
+    return posto_di(validi.w and 'cmd_vuota' or 'cmd_vuota_testo')
+  end
   if riga == 'w' and validi.w then return { titolo = T.posti.cmd_vuota.titolo, testo = T.cmd_w } end
   if SINONIMI_Q[riga] or SINONIMI_QA[riga] or (validi[riga] and riga ~= 'w') then
-    return posto_di('cmd_noto', riga, spiega(riga, pos))
+    return posto_di(perde_il_fatto(riga, pos) and 'cmd_noto_spiegazione' or 'cmd_noto', riga, spiega(riga, pos))
   end
   -- a metà di un comando che vale qui: le lettere che mancano (mai ‹Esc› per primo, che lo cancellerebbe)
   local finire = {}
@@ -143,11 +174,7 @@ local function nella_riga_dei_comandi(riga, testo_comandi, pos, atteso)
   table.sort(finire)
   if #finire > 0 then
     local parti = {}
-    for _, nome in ipairs(finire) do
-      local tasti = {}
-      for ch in nome:sub(#riga + 1):gmatch('.') do tasti[#tasti + 1] = '‹' .. ch .. '›' end
-      parti[#parti + 1] = T.f('cmd_finisci', table.concat(tasti, ' '), nome, spiega(nome, pos))
-    end
+    for _, nome in ipairs(finire) do parti[#parti + 1] = finisci(nome, riga, pos) end
     return posto_di('cmd_parziale', riga, table.concat(parti, ' '))
   end
   return posto_di('cmd_ignoto', riga)
@@ -398,9 +425,12 @@ function M.accendi(fornitore)
   -- acceso Vim darebbe un errore su più righe («Premi INVIO»). Il testo lo dice la frase prima dell'Invio.
   vim.api.nvim_create_user_command('DattiloEsciTutto', function() vim.cmd('qa!') end,
     { bang = true, desc = 'dattilo: chiude dattilo del tutto' })
+  -- con degli spazi davanti (`: qa`) la guida legge lo stesso comando: anche l'abbreviazione, qui e per
+  -- quelle di sempre (`: q`), altrimenti Vim farebbe il suo `:q` o `:qa` mentre la guida promette un'altra cosa
   for nome in pairs(SINONIMI_QA) do
-    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && getcmdline() ==# '%s') ? 'DattiloEsciTutto' : '%s'", nome, nome, nome))
+    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && trim(getcmdline()) ==# '%s') ? 'DattiloEsciTutto' : '%s'", nome, nome, nome))
   end
+  require('dattilo').abbreviazioni(true)
   local g = vim.api.nvim_create_augroup('dattilo_guida', { clear = true })
   -- i posti sbagliati (3.4): ogni evento che può portare dentro o fuori da uno ricalcola il riquadro
   -- (WinNew, WinEnter e WinClosed per la finestra in più, riga 12: aprirla non cambia il modo;
@@ -444,6 +474,7 @@ function M.spegni()
   for _, m in ipairs({ 'n', 'i', 'v', 'o' }) do pcall(vim.keymap.del, m, '<C-z>') end
   pcall(vim.api.nvim_del_user_command, 'DattiloEsciTutto')
   for nome in pairs(SINONIMI_QA) do pcall(vim.cmd, 'cunabbrev ' .. nome) end
+  require('dattilo').abbreviazioni()
   if more_prima ~= nil then vim.o.more = more_prima end
   lezione().guida = nil
 end
@@ -673,7 +704,7 @@ function disegna_testo(s)
   if s.passo == 'briefing' then
     titolo, adesso, cmd = T.f('titoli.briefing', s.L.breve), T.briefing, comandi('testo')
   elseif s.passo == 'spiegazione' then
-    titolo, adesso, cmd = T.f('titoli.spiegazione', s.L.breve), T.spiegazione, comandi('testo')
+    titolo, adesso, cmd = T.f('titoli.spiegazione', s.L.breve), T.spiegazione, comandi('spiegazione')
   elseif s.passo == 'esegui' and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
     -- l'esito di :w vale per il testo di quando è arrivato
     if c and c.righe and not vim.deep_equal(c.righe, vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)) then

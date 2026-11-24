@@ -1490,3 +1490,18 @@ I testi della guida nuovi o cambiati rispetto a quelli approvati, uno per riga, 
 - «Testo scritto» vuol dire: una lezione aperta, nel passo di Batti, della Modifica o di esegui, con almeno una riga non vuota nel buffer del codice.
 
 *Cosa resta ai compiti 8 e 9.* Il compito 8 crea `:salta`, `:ultima` ed `:elenco`, e rimette nei testi quelli del giro di correzione 1. Il compito 9 salva la bozza: allora `:q` e `:qa` non perdono più niente, e `spiega_comando.q`, `q_esci`, `qa` e i «Comandi» tornano a dire «resta salvata».
+
+**Giro di correzione 2 (24/11, dopo la revisione dei compiti 5 e 6).**
+
+*Testi nuovi* (`guida_testi.lua`):
+- `posti.cmd_vuota_ritorno` (la riga dei comandi vuota in un altro file o in una finestra in più: «Adesso» continua la strada, non dice ‹Esc›; il `%s` è un `cmd_finisci` col comando di ritorno): «Stai scrivendo un comando. %s ‹Esc›: annulli e torni dov'eri.» Per esempio: «Stai scrivendo un comando. ‹b› ‹4›: finisci di scrivere :b4; poi ‹Invio›: torni al codice della lezione, com'era. ‹Esc›: annulli e torni dov'eri.»
+- `posti.cmd_noto_spiegazione` (`:q`, `:qa` e sinonimi dalla spiegazione; la lezione si segna solo al riepilogo): «‹Invio›: esegui :%s, cioè %s. Ma la lezione non conta come fatta finché non arrivi al riepilogo. ‹Esc›: annulli e resti qui; poi ‹Invio›: vai al riepilogo e la finisci.» In una finestra in più `:q` chiude solo la finestra (nessuna frase); `:qa` ha la frase anche lì.
+- `comandi_spiegazione` («Comandi» nella spiegazione, al posto di `comandi_testo`): «‹q›: vai all'elenco delle lezioni, ma la lezione non conta come fatta finché non arrivi al riepilogo · ‹Invio›: vai al riepilogo». Chi rimette ‹:salta›, ‹:elenco› ecc. in `comandi_testo` li metta anche qui.
+- `posti.divisa_principale` (cambiato, B7: «la finestra del codice» non vale nell'elenco e nel briefing): «Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo questa finestra; il riquadro torna da solo.»
+
+*Com'è fatto.*
+- «Comandi» è quello del luogo (`comandi_luogo`, al posto di `COMANDI_POSTO`): in un altro buffer `comandi_altro`, in una finestra in più (anche la finestra dei comandi `q:`) `comandi_finestra`, in ogni posto sbagliato che ci si trovi, anche mentre si scrive un comando.
+- `finisci()` (estratta dal ciclo di `cmd_parziale`) dà i tasti che mancano a un comando.
+- `:b 4` (con lo spazio) vale come `:b4`.
+- Con la guida le abbreviazioni (`q`, `q!`, `wq`, `x`, `e!`, e quelle di `:qa`) guardano la riga senza gli spazi davanti: `: qa` e `: q` fanno quello che la guida dice (`init.abbreviazioni(true)`, tolte da `spegni`).
+- La prova «ogni comando scritto nei testi esiste» vede anche i comandi in chiaro (`:nome`) e accetta solo il nome intero, un comando di dattilo (`:salta` è `:DattiloSalta`) o una delle abbreviazioni scritte apposta (`w`, `q`, `e`, `b`, `bn`, `qa`): ‹:sal› non passa.

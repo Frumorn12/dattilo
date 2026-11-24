@@ -93,7 +93,7 @@ T[':w col testo uguale: si va alla spiegazione senza il passo esegui'] = functio
     uguale(r.titolo, TT.f('titoli.spiegazione', 'somma'))
     uguale(r.sezioni.Adesso, TT.spiegazione)
     uguale(r.sezioni.Controllo, TT.controllo_ok)
-    uguale(r.sezioni.Comandi, TT.comandi_testo)
+    uguale(r.sezioni.Comandi, TT.comandi_spiegazione)
     vero(not F:messaggi():find('$ node', 1, true), F:messaggi())
   end)
 end
@@ -368,7 +368,7 @@ for _, d in ipairs({ { 80, 24 }, { 80, 40 } }) do
         uguale(r.titolo, atteso)
         vero(A.sezioni.Adesso and A.sezioni.Comandi, vim.inspect(A.righe))
         vero(A.finisce.Adesso:sub(-3) ~= '…' and A.finisce.Comandi:sub(-3) ~= '…', vim.inspect(A.righe))
-        uguale(A.sezioni.Comandi, M.a_schermo(caso == 'rotta' and TT.comandi_batti or TT.comandi_testo))
+        uguale(A.sezioni.Comandi, M.a_schermo(caso == 'rotta' and TT.comandi_batti or TT.comandi_spiegazione))
         uguale(A.alto, #A.righe, 'la finestra non mostra tutto il riquadro')
         for _, riga in ipairs(A.righe) do uguale(vim.fn.strdisplaywidth(riga), d[1], riga) end
       end)

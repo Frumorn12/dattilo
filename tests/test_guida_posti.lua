@@ -472,7 +472,8 @@ T['in un altro buffer la riga dei comandi riconosce quello che la frase dice'] =
     local n = buf_lezione(F)
     local nome = 'b' .. n
     F:input(':')
-    nel_posto(F, atteso('cmd_vuota_testo'))
+    -- «Adesso» continua la strada: i tasti che mancano a :b e il numero (non ‹Esc›)
+    nel_posto(F, atteso('cmd_vuota_ritorno', TT.f('cmd_finisci', '‹b› ‹' .. tostring(n) .. '›', nome, TT.spiega_comando.b)))
     F:input('b')
     nel_posto(F, atteso('cmd_parziale', 'b', TT.f('cmd_finisci', '‹' .. tostring(n) .. '›', nome, TT.spiega_comando.b)))
     F:input(tostring(n))
@@ -539,32 +540,65 @@ T['in esegui :e! scritto una lettera alla volta è un comando noto'] = function(
   end)
 end
 
--- Rilievo 3: la guida non nomina un comando che non c'è. Ogni ‹:nome› di ogni testo è un comando
--- che esiste adesso (nel figlio, con la guida accesa); :salta, :ultima ed :elenco arrivano col
--- compito 8 e, quando ci sono, la prova passa da sola. ‹:b4› è il comando :b col numero del buffer.
+-- Rilievo 3: la guida non nomina un comando che non c'è. Ogni comando di ogni testo (scritto ‹:nome›
+-- fra i segni, oppure :nome in chiaro) è un comando che esiste adesso (nel figlio, con la guida
+-- accesa); :salta, :ultima ed :elenco arrivano col compito 8 e, quando ci sono, la prova passa da
+-- sola. ‹:b4› è il comando :b col numero del buffer. Un'abbreviazione qualunque non basta (‹:sal› non
+-- è :salta, è :sall): contano il nome intero, uno dei comandi di dattilo (:salta è :DattiloSalta) e le
+-- poche abbreviazioni che la guida scrive apposta.
+local ABBREVIAZIONI_DELLA_GUIDA = { w = true, q = true, e = true, b = true, bn = true, qa = true }
+
+-- Tutti i comandi nominati in un albero di testi: { dove, nome }.
+local function comandi_nei_testi(testi)
+  local trovati = {}
+  local function visita(nome, v)
+    if type(v) == 'string' then
+      for c in v:gmatch('‹:([^›]+)›') do trovati[#trovati + 1] = { nome, c } end
+      for c in (v:gsub('‹[^›]*›', '')):gmatch(':(%a[%w_!]*)') do trovati[#trovati + 1] = { nome, c } end
+    elseif type(v) == 'table' then
+      for k, x in pairs(v) do visita(nome .. '.' .. tostring(k), x) end
+    end
+  end
+  visita('T', testi)
+  return trovati
+end
+
+-- Quali di quei comandi non esistono nel figlio.
+local function inesistenti(F, trovati)
+  local male = {}
+  for _, t in ipairs(trovati) do
+    local c = t[2]:gsub('!$', ''):gsub('%%d$', ''):gsub('%d+$', '')
+    local esiste = F:lua([[
+      local c, abbreviazioni = ...
+      if vim.fn.exists(':' .. c) == 2 then return true end
+      if abbreviazioni[c] and vim.fn.exists(':' .. c) > 0 then return true end
+      return vim.fn.exists(':Dattilo' .. c:sub(1, 1):upper() .. c:sub(2)) == 2]], c, ABBREVIAZIONI_DELLA_GUIDA)
+    if not esiste then male[#male + 1] = t[1] .. ' → :' .. t[2] end
+  end
+  return male
+end
+
 T['ogni comando scritto nei testi della guida esiste'] = function()
   con({}, function(F)
-    local trovati = {}
-    local function visita(nome, v)
-      if type(v) == 'string' then
-        for c in v:gmatch('‹:([^›]+)›') do trovati[#trovati + 1] = { nome, c } end
-      elseif type(v) == 'table' then
-        for k, x in pairs(v) do visita(nome .. '.' .. tostring(k), x) end
-      end
-    end
-    visita('T', TT)
+    local trovati = comandi_nei_testi(TT)
     vero(#trovati > 15, 'pochi comandi trovati: ' .. #trovati)
-    local inesistenti = {}
-    for _, t in ipairs(trovati) do
-      local c = t[2]:gsub('!$', ''):gsub('%%d$', ''):gsub('%d+$', '')
-      local esiste = F:lua('return vim.fn.exists(":" .. ...) > 0', c)
-      if not esiste then
-        local cmd = 'Dattilo' .. c:sub(1, 1):upper() .. c:sub(2)
-        esiste = F:lua('return vim.fn.exists(":" .. ...) == 2', cmd)
-      end
-      if not esiste then inesistenti[#inesistenti + 1] = t[1] .. ' → :' .. t[2] end
-    end
-    uguale(inesistenti, {})
+    uguale(inesistenti(F, trovati), {})
+  end)
+end
+
+-- La prova di sopra vede anche un comando in chiaro («Scrivi :nome») e non accetta ‹:sal› per :salta.
+T['la prova dei comandi vede quelli in chiaro e non accetta un abbreviazione qualunque'] = function()
+  con({}, function(F)
+    local finti = {
+      chiaro = 'Scrivi :inventato e premi Invio.',
+      abbreviato = '‹:sal› ‹Invio›: passi alla prossima',
+      buoni = 'In chiaro :terminal e :bn, fra i segni ‹:w› ‹:e!› ‹:b4› ‹:qa›.',
+    }
+    local t = comandi_nei_testi(finti)
+    uguale(#t, 8)
+    local male = inesistenti(F, t)
+    table.sort(male)
+    uguale(male, { 'T.abbreviato → :sal', 'T.chiaro → :inventato' })
   end)
 end
 

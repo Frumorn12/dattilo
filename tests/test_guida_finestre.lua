@@ -108,8 +108,10 @@ T[':q scritto in una finestra in più dice che chiude la finestra, e «Comandi»
     nel_posto(F, atteso('aiuto'))
     -- «Comandi» dice solo come chiudere: ‹:w› nell'aiuto darebbe un errore, ‹q› registrerebbe una macro
     uguale(F:riquadro().sezioni.Comandi, TT.comandi_finestra)
+    -- dopo i due punti «Adesso» continua la strada (‹q› ‹Invio›), non ‹Esc›, e «Comandi» resta quello della finestra
     F:input(':')
-    nel_posto(F, atteso('cmd_vuota_testo'))
+    nel_posto(F, atteso('cmd_vuota_ritorno', TT.f('cmd_finisci', '‹q›', 'q', TT.spiega_comando.q_finestra)))
+    uguale(F:riquadro().sezioni.Comandi, TT.comandi_finestra)
     F:input('<Esc>')
     F:input('<C-w>c')
     F:aspetta(function() return fuori(F) end)
