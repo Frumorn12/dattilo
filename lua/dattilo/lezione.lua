@@ -108,7 +108,7 @@ local function briefing(s)
   -- devono rifare Batti mentre si scrive, perché svuoterebbero il testo
   mappa(buf, { '<CR>', 'l' }, function() if M.s == s and (not M.guida or s.passo == 'briefing') then M.batti(s) end end)
   mappa(buf, 'v', function() apri_video(s) end)
-  mappa(buf, 'q', function() require('dattilo.home').apri() end)
+  mappa(buf, 'q', function() if not M.guida or (M.s == s and s.passo == 'briefing') then require('dattilo.home').apri() end end)
   if M.guida then M.guida.schermata(s) end
 end
 
@@ -470,7 +470,7 @@ function M.spiegazione(s)
   vim.fn.winrestview({ topfill = #testa })
   mappa(buf, { '<CR>', 'l' }, function() if M.s == s and (not M.guida or s.passo == 'spiegazione') then M.fine(s) end end)
   mappa(buf, 'v', function() apri_video(s, sp.momenti[1] and sp.momenti[1][1]) end)
-  mappa(buf, 'q', function() require('dattilo.home').apri() end)
+  mappa(buf, 'q', function() if not M.guida or (M.s == s and s.passo == 'spiegazione') then require('dattilo.home').apri() end end)
   if M.guida then M.guida.schermata(s) end
 end
 
@@ -524,11 +524,14 @@ function M.fine(s)
   schermo.scrivi(buf, r)
   schermo.mostra(buf, 'testo')
   vim.api.nvim_win_set_cursor(0, { 2, 0 })
+  -- con la guida, la schermata finale rimasta in giro (‹Esc› ‹Ctrl-o›) non apre un'altra lezione mentre se ne scrive una
+  local qui = function() return not M.guida or (M.s == s and s.passo == 'fine') end
   mappa(buf, { '<CR>', 'l' }, function()
+    if not qui() then return end
     if pros then M.apri(pros_pacchetto, pros_n) else require('dattilo.home').lezioni(L.pacchetto) end
   end)
-  mappa(buf, 'r', function() M.apri(L.pacchetto, L.numero) end)
-  mappa(buf, 'q', function() require('dattilo.home').apri() end)
+  mappa(buf, 'r', function() if qui() then M.apri(L.pacchetto, L.numero) end end)
+  mappa(buf, 'q', function() if qui() then require('dattilo.home').apri() end end)
 end
 
 ---------------------------------------------------------------- apertura

@@ -31,10 +31,16 @@ local function lezione() return require('dattilo.lezione') end
 ---------------------------------------------------------------- I posti sbagliati (3.4)
 
 local SINONIMI_Q = { q = true, ['q!'] = true, wq = true, x = true } -- tutti DattiloEsci (init.lua)
+-- «Esci da tutto»: chiudono dattilo del tutto, con del testo non salvato e con un terminale acceso (DattiloEsciTutto)
+local SINONIMI_QA = {}
+for _, nome in ipairs({ 'qa', 'qall', 'quitall', 'wqa', 'wqall', 'xa', 'xall' }) do SINONIMI_QA[nome] = true end
+-- Con `!` l'abbreviazione scatta appena si preme il `!`, e la riga dei comandi diventa questa
+local ESPANSI = { DattiloEsci = 'q', ['DattiloEsci!'] = 'q', DattiloEsciTutto = 'qa', ['DattiloEsciTutto!'] = 'qa' }
 local COMANDO_DI = { salta = 'DattiloSalta', ultima = 'DattiloUltima', elenco = 'DattiloElenco', ['e!'] = 'DattiloRicomincia' }
 local SELEZIONE = { v = true, V = true, ['\22'] = true, s = true, S = true, ['\19'] = true }
 -- «Comandi» di un posto sbagliato che ha una sola uscita (la sezione normale offrirebbe cose che lì non valgono)
-local COMANDI_POSTO = { altro_buffer = 'comandi_altro', altro_buffer_i = 'comandi_altro', terminale = 'comandi_altro' }
+local COMANDI_POSTO = { altro_buffer = 'comandi_altro', altro_buffer_i = 'comandi_altro', terminale = 'comandi_altro',
+  aiuto = 'comandi_finestra', divisa = 'comandi_finestra', divisa_i = 'comandi_finestra' }
 
 -- La finestra `win` è «in più» (3.4, riga 12): non è la principale della lezione, né il riquadro,
 -- né l'OBIETTIVO, né una galleggiante.
@@ -51,8 +57,9 @@ end
 
 -- Dove sta il cursore rispetto alla lezione: 'in_piu' (in una finestra in più), 'altro' (nella
 -- finestra della lezione, ma c'è un altro buffer: Ctrl-^, :e, :bn, un terminale…; il secondo valore
--- è il buffer che ci dovrebbe essere), o nil. Il buffer giusto è l'ultimo messo da schermo.mostra:
--- il codice in Batti, il testo della schermata altrove.
+-- è il buffer che ci dovrebbe essere), 'con_altre' (nella finestra della lezione, col buffer giusto,
+-- ma con altre finestre aperte: riga 12b), o nil. Il buffer giusto è l'ultimo messo da
+-- schermo.mostra: il codice in Batti, il testo della schermata altrove.
 local function posizione()
   local schermo = require('dattilo.schermo')
   local principale = schermo.principale
@@ -63,6 +70,11 @@ local function posizione()
   if win == principale and atteso and vim.api.nvim_buf_is_valid(atteso)
     and vim.api.nvim_win_get_buf(win) ~= atteso then
     return 'altro', atteso
+  end
+  if win == principale then
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if e_in_piu(w) then return 'con_altre' end
+    end
   end
   return nil
 end
@@ -77,7 +89,7 @@ local function comandi_validi(testo_comandi, pos, atteso)
     local cmd = COMANDO_DI[nome]
     if nome == 'w' or nome == 'q' or (cmd and vim.fn.exists(':' .. cmd) == 2) then v[nome] = true end
   end
-  if pos then v.w, v['e!'] = nil, nil end
+  if pos == 'altro' or pos == 'in_piu' then v.w, v['e!'] = nil, nil end
   if pos == 'altro' then v['b' .. atteso] = true end
   return v
 end
@@ -94,13 +106,15 @@ local function ha_scritto()
   return false
 end
 
--- Cosa fa il comando noto `nome`, dove si è adesso (3.4, riga 3). La finestra in più (q_finestra)
--- arriva col compito 6.
-local function spiega(nome)
+-- Cosa fa il comando noto `nome`, dove si è adesso (3.4, riga 3): :q chiude la finestra in più
+-- se il cursore è lì, chiude dattilo nell'elenco, lascia la lezione altrove. :qa chiude dattilo.
+local function spiega(nome, pos)
   if SINONIMI_Q[nome] then
+    if pos == 'in_piu' then return T.spiega_comando.q_finestra end
     if require('dattilo.stato').schermo == 'home' then return T.spiega_comando.q_esci end
     return ha_scritto() and T.spiega_comando.q_scritto or T.spiega_comando.q
   end
+  if SINONIMI_QA[nome] then return ha_scritto() and T.spiega_comando.qa_scritto or T.spiega_comando.qa end
   if nome:match('^b%d+$') then return T.spiega_comando.b end
   return T.spiega_comando[nome]
 end
@@ -115,9 +129,12 @@ end
 local function nella_riga_dei_comandi(riga, testo_comandi, pos, atteso)
   local validi = comandi_validi(testo_comandi, pos, atteso)
   riga = vim.trim(riga)
+  riga = ESPANSI[riga] or riga
   if riga == '' then return posto_di(validi.w and 'cmd_vuota' or 'cmd_vuota_testo') end
   if riga == 'w' and validi.w then return { titolo = T.posti.cmd_vuota.titolo, testo = T.cmd_w } end
-  if SINONIMI_Q[riga] or (validi[riga] and riga ~= 'w') then return posto_di('cmd_noto', riga, spiega(riga)) end
+  if SINONIMI_Q[riga] or SINONIMI_QA[riga] or (validi[riga] and riga ~= 'w') then
+    return posto_di('cmd_noto', riga, spiega(riga, pos))
+  end
   -- a metà di un comando che vale qui: le lettere che mancano (mai ‹Esc› per primo, che lo cancellerebbe)
   local finire = {}
   for nome in pairs(validi) do
@@ -129,7 +146,7 @@ local function nella_riga_dei_comandi(riga, testo_comandi, pos, atteso)
     for _, nome in ipairs(finire) do
       local tasti = {}
       for ch in nome:sub(#riga + 1):gmatch('.') do tasti[#tasti + 1] = '‹' .. ch .. '›' end
-      parti[#parti + 1] = T.f('cmd_finisci', table.concat(tasti, ' '), nome, spiega(nome))
+      parti[#parti + 1] = T.f('cmd_finisci', table.concat(tasti, ' '), nome, spiega(nome, pos))
     end
     return posto_di('cmd_parziale', riga, table.concat(parti, ' '))
   end
@@ -169,15 +186,18 @@ local function posto_per(modo, testo_comandi)
     if pos == 'altro' then return posto_di('terminale', atteso) end
     return posto_di('sconosciuto', modo)
   end
-  -- fuori dal codice della lezione: una finestra in più (3.4, riga 12), o un altro buffer nella
-  -- finestra della lezione. In INSERT ‹Ctrl-w› cancellerebbe una parola: la frase comincia da ‹Esc›.
-  if pos and (modo == 'n' or m1 == 'i') then
-    if pos == 'in_piu' then
-      if m1 == 'i' then return posto_di('divisa_i') end
-      return posto_di(vim.bo.buftype == 'help' and 'aiuto' or 'divisa')
-    end
+  -- fuori dal codice della lezione: una finestra in più (3.4, riga 12), un altro buffer nella
+  -- finestra della lezione, o la finestra della lezione con altre aperte (riga 12b). In INSERT ‹:›
+  -- è una lettera: la frase comincia da ‹Esc›.
+  if pos == 'in_piu' and (modo == 'n' or m1 == 'i') then
+    if m1 == 'i' then return posto_di('divisa_i') end
+    return posto_di(vim.bo.buftype == 'help' and 'aiuto' or 'divisa')
+  end
+  if pos == 'altro' and (modo == 'n' or m1 == 'i') then
     return posto_di(m1 == 'i' and 'altro_buffer_i' or 'altro_buffer', atteso)
   end
+  -- il cursore è nella finestra della lezione, ma un'altra finestra è aperta (3.4, riga 12b)
+  if pos == 'con_altre' and modo == 'n' then return posto_di('divisa_principale') end
   -- NORMAL e INSERT (anche col completamento, ic e ix) non sono posti sbagliati; «Premi INVIO»
   -- (r…) e un comando esterno (!) non si possono ridisegnare
   if modo == 'n' or m1 == 'i' or m1 == 'r' or modo == '!' or m1 == 'c' then return nil end
@@ -374,6 +394,13 @@ function M.accendi(fornitore)
   -- da una shell): qui ‹Esc› annulla l'operatore, e poi la frase
   vim.keymap.set('o', '<C-z>', function() vim.schedule(proteggi(ctrl_z)) return '<Esc>' end,
     { expr = true, desc = 'dattilo: Ctrl-z non mette in pausa (G9)' })
+  -- ‹:qa› e gli altri «esci da tutto» chiudono dattilo: con del testo non salvato o un terminale
+  -- acceso Vim darebbe un errore su più righe («Premi INVIO»). Il testo lo dice la frase prima dell'Invio.
+  vim.api.nvim_create_user_command('DattiloEsciTutto', function() vim.cmd('qa!') end,
+    { bang = true, desc = 'dattilo: chiude dattilo del tutto' })
+  for nome in pairs(SINONIMI_QA) do
+    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && getcmdline() ==# '%s') ? 'DattiloEsciTutto' : '%s'", nome, nome, nome))
+  end
   local g = vim.api.nvim_create_augroup('dattilo_guida', { clear = true })
   -- i posti sbagliati (3.4): ogni evento che può portare dentro o fuori da uno ricalcola il riquadro
   -- (WinNew, WinEnter e WinClosed per la finestra in più, riga 12: aprirla non cambia il modo;
@@ -415,6 +442,8 @@ function M.spegni()
   ultimo, base, mostrata, controllo, giuste = nil, nil, nil, nil, {}
   pcall(vim.api.nvim_del_augroup_by_name, 'dattilo_guida')
   for _, m in ipairs({ 'n', 'i', 'v', 'o' }) do pcall(vim.keymap.del, m, '<C-z>') end
+  pcall(vim.api.nvim_del_user_command, 'DattiloEsciTutto')
+  for nome in pairs(SINONIMI_QA) do pcall(vim.cmd, 'cunabbrev ' .. nome) end
   if more_prima ~= nil then vim.o.more = more_prima end
   lezione().guida = nil
 end
@@ -778,8 +807,63 @@ end
 
 function M.fine(s) return f ~= nil and f.fine ~= nil and f.fine(s) end
 
+---------------------------------------------------------------- le finestre in più (G7)
+
+-- `:q` (DattiloEsci) in una finestra in più chiude solo quella e riporta nella finestra della
+-- lezione; vero se l'ha fatto. Nella finestra dei comandi (q:) fa quello che fa Vim: la chiude.
+function M.esci_da_finestra_in_piu()
+  if not f then return false end
+  local win = vim.api.nvim_get_current_win()
+  if not e_in_piu(win) then return false end
+  if vim.fn.getcmdwintype() ~= '' then
+    pcall(vim.cmd, 'quit')
+    return true
+  end
+  -- il testo non salvato di un buffer qualunque non la trattiene (hidden), ma se una finestra non si
+  -- chiude in modo gentile si chiude con la forza
+  if not pcall(vim.api.nvim_win_close, win, false) then pcall(vim.api.nvim_win_close, win, true) end
+  local principale = require('dattilo.schermo').principale
+  if principale and vim.api.nvim_win_is_valid(principale) then vim.api.nvim_set_current_win(principale) end
+  return true
+end
+
+-- La finestra della lezione è stata chiusa in un altro modo (‹Ctrl-w› ‹c›, ‹Ctrl-w› ‹o› da una
+-- finestra in più, :quit scritto per intero). Con una lezione aperta la lezione si rimette nella
+-- finestra che resta, invece di tornare alla home (schermo.lua); vero se l'ha fatto. `cur` è la
+-- finestra corrente dopo la chiusura: se è il riquadro e ce n'è un'altra, la lezione va nell'altra.
+-- `buf` è il buffer della finestra chiusa, che poteva essere un altro: il buffer giusto è l'ultimo
+-- messo da schermo.mostra.
+function M.riprendi(cur, buf)
+  if not f then return false end
+  local s = lezione().s
+  if not s then return false end
+  local schermo = require('dattilo.schermo')
+  -- la finestra che resta non deve essere il riquadro né l'OBIETTIVO (tempo B), se c'è altro
+  local function di_servizio(w)
+    return (ui.tip_aperto() and w == ui.finestra_tip()) or (s.e and s.e.fin == w) or false
+  end
+  local win = cur
+  if di_servizio(win) then
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if w ~= win and vim.api.nvim_win_get_config(w).relative == '' and not di_servizio(w) then win = w break end
+    end
+  end
+  ui.dimentica_tip(win)
+  if s.e and s.e.fin == win then s.e.fin = nil end -- l'OBIETTIVO si riapre col compito 15
+  schermo.principale = win
+  local wo = vim.wo[win]
+  wo.winfixheight, wo.winbar, wo.statuscolumn = false, '', ''
+  local giusto = schermo.mostrato
+  if not (giusto and vim.api.nvim_buf_is_valid(giusto)) then giusto = buf end
+  local editor = s.passo == 'batti' or s.passo == 'modifica' or s.passo == 'rompi' or s.passo == 'esegui'
+  schermo.mostra(giusto, editor and 'editor' or 'testo')
+  vim.o.cmdheight = 1
+  ridisegna()
+  return true
+end
+
 -- Tutto quello che il resto di dattilo chiama gira protetto.
-for _, nome in ipairs({ 'tip', 'schermata', 'mostra', 'eco', 'fine', 'cambio_voluto' }) do
+for _, nome in ipairs({ 'tip', 'schermata', 'mostra', 'eco', 'fine', 'cambio_voluto', 'esci_da_finestra_in_piu', 'riprendi' }) do
   M[nome] = proteggi(M[nome])
 end
 

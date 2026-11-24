@@ -10,6 +10,9 @@ end
 
 function M.comandi()
   vim.api.nvim_create_user_command('DattiloEsci', function()
+    -- con la guida, in una finestra in più :q chiude solo quella
+    local g = package.loaded['dattilo.guida']
+    if g and g.attiva() and g.esci_da_finestra_in_piu() then return end
     if require('dattilo.stato').schermo == 'home' then vim.cmd('qa!') else require('dattilo.home').apri() end
   end, { bang = true, desc = 'Torna alla home, o esce dalla home' })
   vim.api.nvim_create_user_command('DattiloRicomincia', function()

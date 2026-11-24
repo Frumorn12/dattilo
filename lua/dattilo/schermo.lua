@@ -18,6 +18,9 @@ vim.api.nvim_create_autocmd('WinClosed', { group = vim.api.nvim_create_augroup('
   M.principale = nil
   vim.schedule(function()
     local cur = vim.api.nvim_get_current_win()
+    -- con la guida e una lezione aperta, la lezione si rimette nella finestra che resta (G7)
+    local g = package.loaded['dattilo.guida']
+    if g and g.attiva() and g.riprendi(cur, a.buf) then return end
     require('dattilo.ui').dimentica_tip(cur)
     local lezione, dojo = require('dattilo.lezione'), require('dattilo.dojo')
     for _, e in ipairs({ lezione.s and lezione.s.e or false, dojo.e or false }) do

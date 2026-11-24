@@ -318,8 +318,9 @@ T['terminale: seguendo la guida si torna al codice'] = function()
   end)
 end
 
--- La finestra in più (3.4, riga 12), col cursore dentro: ‹Ctrl-w› ‹c› chiude solo quella. :q oggi
--- lascerebbe la lezione (chiude solo la finestra in più dal compito 6).
+-- La finestra in più (3.4, riga 12), col cursore dentro: la frase dice ‹:q› ‹Invio›, che chiude solo
+-- quella (compito 6; nel compito 5 era ‹Ctrl-w› ‹c›, perché :q lasciava la lezione). Le prove di
+-- :q nella finestra in più sono in test_guida_finestre.lua.
 T['aiuto con F1'] = riga({ entra = '<Esc><F1>', posto = atteso('aiuto'), modo_dopo = 'n',
   dopo = function(F)
     uguale(finestre(F), 2)
@@ -430,7 +431,7 @@ T['un altro buffer anche nel briefing e nell elenco: la guida riporta al testo']
   end)
 end
 
--- Nel briefing rimasto indietro ‹Invio› e ‹l› non devono rifare Batti: cancellerebbero il testo.
+-- Nel briefing rimasto indietro ‹Invio›, ‹l› e ‹q› non devono rifare Batti né lasciare la lezione: perderebbero il testo.
 T['il briefing rimasto indietro non ricomincia Batti: il testo resta'] = function()
   con({}, function(F)
     in_batti(F, 'n')
@@ -439,7 +440,9 @@ T['il briefing rimasto indietro non ricomincia Batti: il testo resta'] = functio
     nel_posto(F, atteso('altro_buffer', buf_lezione(F)))
     F:input('<CR>')
     F:input('l')
+    F:input('q') -- anche ‹q› (torna alla home) non porta via il testo
     uguale(F:lua('return require("dattilo.lezione").s.passo'), 'batti')
+    uguale(F:lua('return require("dattilo.stato").schermo'), 'lezione')
     uguale(righe_lezione(F), { 'func' })
     F:segui(function() return fuori(F) end, 4)
     uguale(F:righe(), { 'func' })

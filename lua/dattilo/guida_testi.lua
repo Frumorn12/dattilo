@@ -88,6 +88,8 @@ M.comandi_elenco = '‹:q› ‹Invio›: chiudi dattilo'
 M.comandi_attesa = '‹:q› ‹Invio›: chiudi dattilo'
 -- Non sono nella 3.3: «Comandi» quando il cursore è in un altro buffer (il %d è il numero del codice)
 M.comandi_altro = '‹:b%d› ‹Invio›: torni al codice della lezione, com\'era'
+-- Non è nella 3.3: «Comandi» in una finestra in più (‹:w› nell'aiuto dà un errore, ‹q› registra una macro)
+M.comandi_finestra = '‹:q› ‹Invio›: chiudi questa finestra e torni al codice'
 
 -- Modifica (tempo B)
 M.mod_parole = 'Sei in NORMAL: qui i tasti spostano il cursore e cambiano il testo. A parole: %s Se ti blocchi, fra 15 secondi senza tasti qui compaiono i tasti esatti, uno alla volta.'
@@ -115,12 +117,11 @@ M.posti = {
   replace = { titolo = 'SEI IN REPLACE', testo = 'Ogni tasto scrive sopra la lettera che c\'è (l\'ha aperto R o il tasto Ins). ‹Ins›: torni a scrivere normale, in INSERT.' },
   operatore = { titolo = 'NEOVIM ASPETTA', testo = 'Hai premuto %s: Neovim aspetta di sapere su che pezzo di testo agire. ‹Esc›: annulli, e il testo non cambia.' },
   ctrl_o = { titolo = 'UN COMANDO SOLO', testo = 'Hai premuto Ctrl-o: Neovim aspetta un solo comando e poi torna a scrivere. ‹Esc›: torni subito a scrivere.' },
-  -- Cambiati costruendo: ‹Ctrl-w› ‹c› chiude solo questa finestra. :q (DattiloEsci) oggi lascia la
-  -- lezione: chiude solo la finestra in più dal compito 6.
-  aiuto = { titolo = 'FINESTRA IN PIÙ', testo = 'Si è aperto l\'aiuto di Neovim, in inglese (l\'apre il tasto F1). ‹Ctrl-w› ‹c›: lo chiudi e torni al codice.' },
-  divisa = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due (l\'ha fatto Ctrl-w o un comando come :split). ‹Ctrl-w› ‹c›: chiudi questa finestra e torni al codice.' },
-  -- Non è nella 3.4: si scrive in una finestra in più. In INSERT ‹Ctrl-w› cancella una parola: prima ‹Esc›.
-  divisa_i = { titolo = 'FINESTRA IN PIÙ', testo = 'Stai scrivendo in un\'altra finestra, non nel codice della lezione. ‹Esc›: smetti di scrivere; poi ‹Ctrl-w› ‹c›: chiudi questa finestra e torni al codice.' },
+  -- Come nella 3.4: con la guida :q (DattiloEsci) in una finestra in più chiude solo quella (compito 6).
+  aiuto = { titolo = 'FINESTRA IN PIÙ', testo = 'Si è aperto l\'aiuto di Neovim, in inglese (l\'apre il tasto F1). ‹:q› ‹Invio›: lo chiudi e torni al codice.' },
+  divisa = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due (l\'ha fatto Ctrl-w o un comando come :split). ‹:q› ‹Invio›: chiudi questa finestra e torni al codice.' },
+  -- Non è nella 3.4: si scrive in una finestra in più. In INSERT ‹:› è una lettera: prima ‹Esc›.
+  divisa_i = { titolo = 'FINESTRA IN PIÙ', testo = 'Stai scrivendo in un\'altra finestra, non nel codice della lezione. ‹Esc›: smetti di scrivere; poi ‹:q› ‹Invio›: chiudi questa finestra e torni al codice.' },
   divisa_principale = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo la finestra del codice; il riquadro torna da solo.' },
   frecce = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹Esc›: smetti di scrivere; poi ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra; poi ‹A›: torni a scrivere in fondo alla riga.' },
   -- in NORMAL ‹Esc› non fa niente: si comincia da ‹A›
@@ -154,6 +155,9 @@ M.spiega_comando = {
   q_scritto = 'lasci la lezione e torni all\'elenco; quello che hai scritto qui non si conserva',
   q_finestra = 'chiudi questa finestra e torni al codice',
   q_esci = 'chiudi dattilo',
+  -- Non è nella 3.4: :qa vuol dire «esci da tutto» (come in Vim), e qui chiude dattilo del tutto
+  qa = 'chiudi dattilo del tutto (qa vuol dire «esci da tutto»)',
+  qa_scritto = 'chiudi dattilo del tutto (qa vuol dire «esci da tutto»); quello che hai scritto qui non si conserva',
   b = 'torni al codice della lezione, com\'era',
   salta = 'passi alla prossima lezione',
   ultima = 'vai all\'ultima modifica di Claude',
