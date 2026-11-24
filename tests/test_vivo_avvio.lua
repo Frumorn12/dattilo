@@ -53,6 +53,8 @@ T['senza vivo la guida resta spenta'] = function()
     uguale(F:lua('return require("dattilo.guida").attiva()'), false)
     uguale(F:lua('return #vim.api.nvim_tabpage_list_wins(0)'), 1)
     uguale(F:lua('return vim.fn.exists(":DattiloSalta")'), 0)
+    -- nessun autocomando della guida
+    uguale(F:lua('return vim.fn.exists("#dattilo_guida")'), 0)
   end)
 end
 

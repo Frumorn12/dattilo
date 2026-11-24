@@ -291,17 +291,17 @@ Ho riletto tutto il percorso di una lezione: briefing, batti, salvataggio, esegu
 |---|---|---|---|---|
 | 1 | Briefing, lezione.lua:97-104 | In fondo al testo: «‹Invio› inizia ‹v› apre il video… ‹q› torna alla home» | È una riga muta in fondo alla pagina. Non dice cosa succede dopo ‹Invio›. ‹q› porta alla home, che in «Rifallo tu» non c'è. | Riquadro con `briefing`: «‹Invio›: apri il codice da riscrivere…» più i `comandi_testo`. ‹q› porta all'elenco (home.lua:117 rimanda lì). |
 | 2 | Batti prima di scrivere, lezione.lua:145-146 | Avviso «NORMAL»: «Sei in NORMAL: qui i tasti sono comandi, non lettere. Premi ‹i› per entrare in INSERT…» | Usa NORMAL e INSERT senza dire dove si vedono. Non dice cosa succede dopo. | `batti_vuoto`: «‹i›: entri in scrittura. In basso a sinistra NORMAL diventa INSERT…» |
-| 3 | Frecce, lezione.lua:118-123 e 309-311 | «Le frecce qui non valgono: ti muovi con ‹h› ‹j› ‹k› ‹l›…» | Non dice quale lettera va dove. L'avviso sparisce al primo movimento (lezione.lua:302-303). | `frecce` (3.4, riga 13): ogni lettera con la sua direzione, poi ‹A› per tornare a scrivere. |
-| 4 | Riga non finita, lezione.lua:136-144 | «La riga 4 non è finita. ‹Backspace› a inizio riga la riunisce a quella sopra; oppure ‹Esc›, sali con ‹k›, poi ‹A›…» | Dà due strade senza dire quale vale. Non dice che, dopo l'‹Invio› di dattilo, ‹Backspace› va premuto più volte: prima toglie il rientro, poi riunisce. «Sali con ‹k›» da lontano vuol dire molte ‹k›. | Tre casi: `batti_spezzata` (‹Backspace› premuto N volte, contate), `batti_indietro` (‹4› ‹G› poi ‹A›) e il rosso con `batti_errore`. |
-| 5 | Avvisi NORMAL e sezione «Vim», lezione.lua:145-148 e 188-190 | «‹h› ‹j› ‹k› ‹l› ti spostano, ‹i› torna a scrivere, ‹x› cancella…»; «Per spostarti: ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i›» | ‹i› dopo ‹Esc› scrive prima dell'ultima lettera, e il carattere dopo diventa rosso. La sezione «Vim» ha priorità 0, quindi è la prima a sparire. | `batti_riprendi`: «‹A›: torni a scrivere in fondo a questa riga…». Se il testo è cambiato in NORMAL, `batti_cambiato` con ‹u›. |
+| 3 | Frecce, lezione.lua:118-123 e 309-311 | «Le frecce qui non valgono: ti muovi con ‹h› ‹j› ‹k› ‹l›…» | Non dice quale lettera va dove. L'avviso sparisce al primo movimento (lezione.lua:302-303). | `frecce` (3.4, riga 13): ogni lettera con la sua direzione e ‹A› per tornare a scrivere. In INSERT comincia da ‹Esc›; in NORMAL, dove ‹Esc› non fa niente, comincia da ‹A› (`frecce_n`), e fatta la mossa la frase se ne va. |
+| 4 | Riga non finita, lezione.lua:136-144 | «La riga 4 non è finita. ‹Backspace› a inizio riga la riunisce a quella sopra; oppure ‹Esc›, sali con ‹k›, poi ‹A›…» | Dà due strade senza dire quale vale. Non dice che, dopo l'‹Invio› di dattilo, ‹Backspace› va premuto più volte: prima toglie il rientro, poi riunisce. «Sali con ‹k›» da lontano vuol dire molte ‹k›. | Quattro casi: `batti_spezzata` (‹Backspace› premuto N volte, contate); `batti_spezzata_meta`, quando l'a capo è arrivato a metà di quello che si era scritto e la coda è scesa nella riga dopo (le stesse ‹Backspace› contate riuniscono la riga, e la frase dice che il cursore torna nel punto della spaccatura); `batti_indietro` (‹4› ‹G› poi ‹A›), o `batti_continua` quando quella riga è intera ed è solo l'ultima scritta; il rosso con `batti_errore`. |
+| 5 | Avvisi NORMAL e sezione «Vim», lezione.lua:145-148 e 188-190 | «‹h› ‹j› ‹k› ‹l› ti spostano, ‹i› torna a scrivere, ‹x› cancella…»; «Per spostarti: ‹Esc›, poi ‹h› ‹j› ‹k› ‹l›, poi ‹i›» | ‹i› dopo ‹Esc› scrive prima dell'ultima lettera, e il carattere dopo diventa rosso. La sezione «Vim» ha priorità 0, quindi è la prima a sparire. | `batti_riprendi`: «‹A›: torni a scrivere in fondo a questa riga…». Se il testo è cambiato in NORMAL, `batti_cambiato` con ‹u›; se un ‹u› di troppo ha annullato del testo scritto, `batti_annullato` con ‹g› ‹+›, che lo rimette (un altro ‹u› ne toglierebbe ancora). |
 | 6 | Finire, lezione.lua:125-131 | «Ora ‹Esc› per tornare in NORMAL», poi «Salva ed esegui: scrivi ‹:w› e premi ‹Invio›. dattilo lancia node.» | Non dice come si fa ‹:›. Dice «esegui» mentre node controlla e basta. Non dice cosa viene dopo. | `batti_finito_i` e `batti_finito_n`; nella riga dei comandi, `cmd_w`. |
 | 7 | Salvataggio, lezione.lua:217-229 e compila.lua:151-182 | Esito su più righe nella riga dei messaggi | È su più righe, quindi Neovim chiede «Press ENTER» (in inglese, con `LANG=en_US`), e lo schermo si blocca. | Tutto in «Controllo»: `controllo_ok`, `controllo_mancano`, `controllo_rosso`, `controllo_ko` (G5). |
 | 8 | Batti senza Modifica, lezione.lua:259-265 e 207-208 | Dopo Batti c'è il passo «esegui»: «Ora ‹:w›: dattilo salva ed esegue il codice.» | Chiede un secondo ‹:w› senza motivo: il codice è già stato controllato. | Con la guida, se il testo finale è uguale al codice di Batti, il passo «esegui» si salta e si va alla spiegazione. Vale anche nel tempo B, dove l'obiettivo è il codice di Batti. |
 | 9 | Spiegazione e riepilogo, lezione.lua:446-454 e 502-511 | «‹Invio› continua ‹q› torna alla home» come testo virtuale dopo l'ultima riga del codice | Con 30 righe di codice in un pannello mezzo schermo, la riga è fuori dalla vista. Gli altri tasti fanno cose di Vim (‹v› seleziona, ‹:› comandi) senza che niente lo dica. | Riquadro con `spiegazione` e, nel riepilogo di `vivo`, `fatto_coda` o `fatto_vuota`. I posti sbagliati sono coperti dalla 3.4. |
 | 10 | Uscita, init.lua:4-14 e lezione.lua:307-308 | Niente a schermo. `:q`, `:wq`, `:x`, `ZZ` e `ZQ` portano alla home, e dalla home `:q` chiude. | I comandi non sono mai scritti. `:q` nella finestra dell'aiuto butta fuori dalla lezione. | «Comandi» in ogni schermata (G6). `:q` chiude il posto dove sei (G7). |
 | 11 | Elenco, home.lua:180 e 192-201 | «‹j› ‹k› muovi ‹Invio› apri ‹q› indietro». ‹G› e ‹gg› ci sono ma non sono scritti. | Non dice quale lettera va su e quale giù. | L'elenco di `vivo` con `elenco`: «‹j›: scendi di una lezione; ‹k›: sali…» |
-| 12 | Mouse, init.lua:37 (`mouse = 'a'`) | Niente | Trascinare o fare doppio clic apre VISUAL senza che niente lo dica. Il tasto centrale incolla. | Trascinare apre VISUAL, e la guida lo dice (3.4, riga 1). Il clic che sposta il cursore è come le frecce di Vim: la guida ricalcola «Adesso». |
-| 13 | Caratteri speciali | Niente | I digrammi di Vim ci sono (verificati: « » … — – ’ “ ” × → ★), ma nessuno li dice. | `batti_carattere` (G11). |
+| 12 | Mouse, init.lua:37 (`mouse = 'a'`) | Niente | Trascinare o fare doppio clic apre VISUAL senza che niente lo dica. Il tasto centrale incolla. | Trascinare apre VISUAL, e la guida lo dice (3.4, riga 1). Il clic che sposta il cursore è come le frecce di Vim: la guida ricalcola «Adesso». Un clic a metà di quello che si è scritto dà ‹Fine›; un clic a metà di una riga intera, con un'altra da finire, porta subito a quella. |
+| 13 | Caratteri speciali | Niente | I digrammi di Vim ci sono (verificati: « » … — – ’ “ ” × → ★), ma nessuno li dice. | `batti_carattere` (G11), che dice anche le lettere maiuscole fra i tasti («E maiuscola», come per la G). |
 | 14 | Ctrl-C | Niente. In INSERT esce dalla scrittura (provato: `ModeChanged i:n`). | Niente dice che si è usciti. | «Adesso» torna a dire come rientrare: `batti_riprendi` o `batti_indietro`. |
 
 **Cosa c'è già e si riusa.**
@@ -331,30 +331,47 @@ Tutte le frasi stanno in un modulo solo, `lua/dattilo/guida_testi.lua`, col nome
 | Attesa | `ASPETTO CLAUDE` |
 | Posti sbagliati | quelli della 3.4, bordo rosso |
 
-**«Adesso» in Batti** (`guida.adesso_batti`). `r` è la riga del cursore. `k` è la prima riga del buffer diversa dal grigio; se le righe del buffer sono tutte uguali al grigio ma sono meno, `k` è l'ultima, perché lì si continua. Vale il primo caso che si applica, dall'alto. Prima di tutti vengono i posti sbagliati della 3.4.
+**«Adesso» in Batti** (`guida.adesso_batti`). `r` è la riga del cursore, `c` la sua colonna. `k` è la prima riga del buffer diversa dal grigio; se le righe del buffer sono tutte uguali al grigio ma sono meno, `k` è l'ultima, perché lì si continua. Vale il primo caso che si applica, dall'alto. Prima di tutti vengono i posti sbagliati della 3.4. L'ordine e alcune frasi sono cambiati costruendo, per non far perdere testo buono e non lasciare ferma la persona: l'elenco è in fondo, in «Cambiato costruendo (24/11)».
+
+*In INSERT:*
 
 | Caso | Nome | Frase |
 |---|---|---|
-| NORMAL, niente scritto | `batti_vuoto` | ‹i›: entri in scrittura. In basso a sinistra NORMAL diventa INSERT, e da lì ogni tasto che premi scrive sopra il grigio. |
-| NORMAL, righe diverse da quelle dell'ultimo `InsertLeave` (o dell'ultimo cambio fatto da dattilo, come la bozza rimessa) | `batti_cambiato` | Il testo è cambiato mentre eri in NORMAL, dove le lettere sono comandi. ‹u›: annulla l'ultimo cambio; premilo più volte per tornare più indietro. |
 | Una freccia appena premuta | `frecce` | 3.4, riga 13 |
-| INSERT, tutto uguale al grigio | `batti_finito_i` | Hai scritto tutto. ‹Esc›: smetti di scrivere (in basso torna NORMAL). Poi ‹:w› ‹Invio›: salvi e node controlla il codice. |
-| NORMAL, tutto uguale al grigio | `batti_finito_n` | ‹:w› ‹Invio›: salvi e node controlla il codice. I due punti si fanno con Maiusc e il tasto del punto; il comando compare in fondo allo schermo. |
-| INSERT, rosso sulla riga `r` e la lettera rossa è la maiuscola di quella grigia | `batti_maiuscole` | Il rosso è in MAIUSCOLO dove il grigio è minuscolo: forse è acceso il Bloc Maiusc. Spegnilo; poi ‹Backspace›: cancella le lettere rosse. |
-| INSERT, rosso sulla riga `r` | `batti_errore` | Il rosso è un errore. ‹Backspace›: cancella l'ultima lettera; premilo finché il rosso sparisce, poi riscrivi giusto. |
-| INSERT, `k = r-1` e la riga `r` ha solo il rientro | `batti_spezzata` | La riga %d è stata spezzata da un a capo arrivato troppo presto. ‹Backspace›: premilo %s e torni in fondo alla riga %d; poi continua a scrivere. |
-| INSERT, `k < r` | `batti_indietro_i` | La riga %d non è finita. ‹Esc›: smetti di scrivere; poi ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga. |
-| NORMAL, rosso sulla riga del cursore | `batti_rosso_qui` | C'è del rosso in questa riga. ‹A›: scrivi in fondo alla riga; poi ‹Backspace›: cancella fino al rosso, e riscrivi giusto. |
-| NORMAL, rosso alla riga `e`, un'altra | `batti_rosso_n` | C'è del rosso alla riga %d. ‹%d› ‹G›: vai alla riga %d; poi ‹A›: scrivi in fondo alla riga; poi ‹Backspace›: cancella fino al rosso, e riscrivi giusto. |
-| NORMAL, `k ≠ r` | `batti_indietro_n` | La riga %d non è finita. ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga. |
-| NORMAL, `k = r` | `batti_riprendi` | ‹A›: torni a scrivere in fondo a questa riga. (Non i: scriverebbe prima dell'ultima lettera.) |
-| INSERT, il prossimo carattere non è sulla tastiera | `batti_carattere` | Il prossimo carattere, %s, non è sulla tastiera. %s: lo scrive (tieni premuto Ctrl e premi la lettera, poi gli altri tasti). |
-| INSERT, cursore non in fondo a quello che si è scritto | `batti_cursore` | Il cursore non è in fondo a quello che hai scritto. ‹Fine›: lo porta in fondo alla riga; poi continua. |
-| INSERT, riga `r` uguale al grigio e quella dopo vuota | `batti_riga_vuota` | Riga finita. ‹Invio› ‹Invio›: vai a capo due volte, perché nel grigio la riga dopo è vuota. |
-| INSERT, riga `r` uguale al grigio | `batti_fine_riga` | Riga finita. ‹Invio›: vai a capo; gli spazi all'inizio della riga dopo li mette dattilo. |
-| INSERT, altrimenti | `batti_scrivi` | Scrivi il testo grigio, uguale, lettera per lettera. ‹Backspace›: cancella l'ultima lettera. |
+| Tutto uguale al grigio | `batti_finito_i` | Hai scritto tutto. ‹Esc›: smetti di scrivere (in basso torna NORMAL). Poi ‹:w› ‹Invio›: salvi e node controlla il codice. |
+| `k = r-1`, il cursore è nel rientro della riga `r` e quello che ha a destra, messo in fondo alla riga `k`, è ancora l'inizio giusto del grigio (un a capo a metà di quello che si era scritto) | `batti_spezzata_meta` | La riga %d è stata spezzata in due da un a capo. ‹Backspace›: premilo %s e la riga %d torna intera, col cursore nel punto dove si era spezzata; poi ‹Fine›: vai in fondo alla riga e continua a scrivere. |
+| Cursore non in fondo alla riga `r`, la riga `r` è uguale al grigio e `k ≠ r` | `batti_indietro_i` o `batti_continua_i` | come nelle righe `k ≠ r` qui sotto: si va subito alla riga da finire |
+| Cursore non in fondo a quello che si è scritto | `batti_cursore` | Il cursore non è in fondo a quello che hai scritto. ‹Fine›: lo porta in fondo alla riga; poi continua. |
+| Rosso sulla riga `r` e la lettera rossa è la maiuscola di quella grigia | `batti_maiuscole` | Il rosso è in MAIUSCOLO dove il grigio è minuscolo: forse è acceso il Bloc Maiusc. Spegnilo; poi ‹Backspace›: cancella le lettere rosse. |
+| Rosso sulla riga `r` | `batti_errore` | Il rosso è un errore. ‹Backspace›: cancella l'ultima lettera; premilo finché il rosso sparisce, poi riscrivi giusto. |
+| `k = r-1` e la riga `r` ha solo il rientro | `batti_spezzata` | La riga %d è stata spezzata da un a capo arrivato troppo presto. ‹Backspace›: premilo %s e torni in fondo alla riga %d; poi continua a scrivere. |
+| `k ≠ r` (sopra o sotto) e la riga `k` non è finita | `batti_indietro_i` | La riga %d non è finita. ‹Esc›: smetti di scrivere; poi ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga. |
+| `k ≠ r` e la riga `k` è intera (è l'ultima scritta) | `batti_continua_i` | Fin qui è tutto giusto: si va avanti dalla fine della riga %d, l'ultima che hai scritto. ‹Esc›: smetti di scrivere; poi ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga. |
+| Il prossimo carattere non è sulla tastiera | `batti_carattere` | Il prossimo carattere, %s, non è sulla tastiera. %s: lo scrive (tieni premuto Ctrl e premi la lettera, poi gli altri tasti%s). |
+| Riga `r` uguale al grigio e quella dopo vuota | `batti_riga_vuota` | Riga finita. ‹Invio› ‹Invio›: vai a capo due volte, perché nel grigio la riga dopo è vuota. |
+| Riga `r` uguale al grigio | `batti_fine_riga` | Riga finita. ‹Invio›: vai a capo; gli spazi all'inizio della riga dopo li mette dattilo. |
+| Altrimenti | `batti_scrivi` | Scrivi il testo grigio, uguale, lettera per lettera. ‹Backspace›: cancella l'ultima lettera. |
 
-In `batti_spezzata` le volte sono `ceil(rientro / 4) + 1`, scritte «una volta» o «N volte». Il buffer ha `softtabstop=4` (batti.lua:12), quindi ogni ‹Backspace› toglie fino a 4 spazi del rientro, e l'ultimo riunisce le righe.
+*In NORMAL:*
+
+| Caso | Nome | Frase |
+|---|---|---|
+| Le righe sono diverse da quelle dell'ultima uscita dalla scrittura (o dell'ultimo cambio fatto da dattilo, come la bozza rimessa), e la storia degli annullamenti è più indietro di allora (un ‹u› di troppo) | `batti_annullato` | Hai annullato del testo che avevi scritto (in NORMAL il tasto u annulla). ‹g› ‹+›: lo rimette; ripetilo finché questa frase non cambia. |
+| Le righe sono diverse da quelle dell'ultima uscita dalla scrittura | `batti_cambiato` | Il testo è cambiato mentre eri in NORMAL, dove le lettere sono comandi. ‹u›: annulla l'ultimo cambio; premilo più volte per tornare più indietro. |
+| Niente scritto | `batti_vuoto` | ‹i›: entri in scrittura. In basso a sinistra NORMAL diventa INSERT, e da lì ogni tasto che premi scrive sopra il grigio. |
+| Una freccia appena premuta | `frecce_n` | 3.4, riga 13, la frase di NORMAL |
+| Tutto uguale al grigio | `batti_finito_n` | ‹:w› ‹Invio›: salvi e node controlla il codice. I due punti si fanno con Maiusc e il tasto del punto; il comando compare in fondo allo schermo. |
+| Rosso sulla riga del cursore | `batti_rosso_qui` | C'è del rosso in questa riga. ‹A›: scrivi in fondo alla riga; poi ‹Backspace›: cancella fino al rosso, e riscrivi giusto. |
+| Rosso alla riga `e`, un'altra | `batti_rosso_n` | C'è del rosso alla riga %d. ‹%d› ‹G›: vai alla riga %d; poi ‹A›: scrivi in fondo alla riga; poi ‹Backspace›: cancella fino al rosso, e riscrivi giusto. |
+| `k ≠ r` e la riga `k` non è finita | `batti_indietro_n` | La riga %d non è finita. ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga. |
+| `k ≠ r` e la riga `k` è intera | `batti_continua_n` | Fin qui è tutto giusto: si va avanti dalla fine della riga %d, l'ultima che hai scritto. ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga. |
+| `k = r` | `batti_riprendi` | ‹A›: torni a scrivere in fondo a questa riga. (Non i: scriverebbe prima dell'ultima lettera.) |
+
+In `batti_spezzata` le volte sono `ceil(rientro / 4) + 1`; in `batti_spezzata_meta` sono `ceil(c / 4) + 1`, contate dalla colonna del cursore. Si scrivono «una volta» o «N volte» (`una_volta`, `volte`). Il buffer ha `softtabstop=4` (batti.lua:12), quindi ogni ‹Backspace› toglie fino a 4 spazi del rientro, e l'ultimo riunisce le righe.
+
+In `batti_carattere` il terzo `%s` dice le lettere maiuscole fra i tasti, come la G di ‹%d› ‹G›: «; E maiuscola» (`maiuscola`) o «; O e K maiuscole» (`maiuscole`), oppure niente. Le cifre dopo ‹Ctrl-v› ‹u› valgono anche minuscole, e non si dicono.
+
+Con la guida la nota «Riga vuota: … ‹Invio› e vai avanti.» di `lezione.tip_batti` non si mostra: dice ‹Invio› senza dire cosa fa (G3), e sulla riga vuota «Adesso» dice già cosa premere.
 
 **«Adesso» nelle altre schermate.**
 
@@ -426,7 +443,7 @@ Per ogni posto ci sono: come ci si arriva, come se ne accorge dattilo, il titolo
 | 11 | Un comando solo da INSERT | ‹Ctrl-o› | `ModeChanged` verso `niI`, `niR` | UN COMANDO SOLO | Hai premuto Ctrl-o: Neovim aspetta un solo comando e poi torna a scrivere. ‹Esc›: torni subito a scrivere. |
 | 12 | Finestra in più, col cursore dentro | ‹Ctrl-w› ‹s›/‹v›/‹n›, `:split`, ‹F1›, `:help`, ‹K› | `WinNew`, `WinEnter`: la finestra non è la principale, il riquadro, l'OBIETTIVO o una galleggiante | FINESTRA IN PIÙ | Aiuto (`buftype=help`): Si è aperto l'aiuto di Neovim, in inglese (l'apre il tasto F1). ‹:q› ‹Invio›: lo chiudi e torni al codice. Altrimenti: Lo schermo si è diviso in due (l'ha fatto Ctrl-w o un comando come :split). ‹:q› ‹Invio›: chiudi questa finestra e torni al codice. |
 | 12b | Finestra in più, col cursore nella finestra della lezione | come sopra, poi un clic | come sopra | FINESTRA IN PIÙ | Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo la finestra del codice; il riquadro torna da solo. |
-| 13 | Freccia in Batti | ‹↑› ‹↓› ‹←› ‹→› | la mappa di oggi (lezione.lua:309-311) mette `s.frecce` | LE FRECCE SONO SPENTE | Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹Esc›: smetti di scrivere; poi ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra; poi ‹A›: torni a scrivere in fondo alla riga. |
+| 13 | Freccia in Batti | ‹↑› ‹↓› ‹←› ‹→› | la mappa di oggi (lezione.lua:309-311) mette `s.frecce`; un movimento o un cambio di modo lo toglie | LE FRECCE SONO SPENTE | In INSERT (`frecce`): Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹Esc›: smetti di scrivere; poi ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra; poi ‹A›: torni a scrivere in fondo alla riga. In NORMAL (`frecce_n`), dove ‹Esc› non fa niente: Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹A›: torni a scrivere in fondo alla riga. Per spostarti, in NORMAL: ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra. |
 | 14 | Ctrl-z | ‹Ctrl-z› | la mappa di G9 | (resta quello della schermata) | `ctrl_z`, in «Controllo» |
 | 15 | Modalità Ex | ‹g› ‹Q› | `ModeChanged` verso `cv`, `ce` | MODALITÀ EX | Sei nella modalità Ex (l'apre g seguito da Q). Scrivi visual, poi ‹Invio›: torni allo schermo normale. |
 | 16 | Ogni altro modo | per esempio `:terminal` | `ModeChanged` verso un modo che non è qui sopra | POSTO SCONOSCIUTO | Sei in una modalità di Neovim che la guida non conosce (in basso: %s). ‹Esc›: di solito riporta in NORMAL; se non basta, ‹:q› ‹Invio›: lasci la lezione, che resta salvata. |
@@ -984,20 +1001,23 @@ Oggi niente la accende fuori da `vivo`: il dattilo di oggi non cambia.
 
 | Funzione | Cosa fa |
 |---|---|
-| `M.accendi(fornitore)` | Mette `lezione.guida = M`. Opzioni: `more = false`. Mappa ‹Ctrl-z› (G9). Crea il gruppo di autocomandi dei posti sbagliati (3.4): `ModeChanged`, `RecordingEnter`/`RecordingLeave`, `CmdlineChanged`, `CmdwinEnter`/`CmdwinLeave`, `WinNew`, `WinEnter`, `WinClosed`, `TextChanged`. Ognuno ricalcola il riquadro con `vim.schedule`, sotto `pcall`. `fornitore = { comandi = fun(schermata): string, fine = fun(s): boolean, su_schermata = fun(s), destra = fun(): string }` |
+| `M.accendi(fornitore)` | Mette `lezione.guida = M`. Opzioni: `more = false`. Mappa ‹Ctrl-z› (G9). Crea il gruppo di autocomandi dei posti sbagliati (3.4): `ModeChanged`, `RecordingEnter`/`RecordingLeave`, `CmdlineChanged`, `CmdwinEnter`/`CmdwinLeave`, `WinNew`, `WinEnter`, `WinClosed`, `TextChanged`. Ognuno ricalcola il riquadro con `vim.schedule`, sotto `pcall`. Nello stesso gruppo, costruendo, sono arrivati anche `VimResized` (il riquadro si rimisura), `ModeChanged` in uscita dalla scrittura (`cambio_voluto`) e `CursorMoved` (in NORMAL un movimento cambia «Adesso» e toglie la frase delle frecce). `fornitore = { comandi = fun(schermata): string, fine = fun(s): boolean, su_schermata = fun(s), destra = fun(): string }` |
 | `M.spegni()`, `M.attiva() → boolean` | |
 | `M.tip(s)` | Il riquadro per i passi batti, modifica ed esegui: titolo, «Adesso», «Controllo», le sezioni di `lezione.tip_batti` senza l'avviso e senza «Vim», «Comandi». Alza il riquadro (`ui.altezza_tip`) fino a 10 righe interne, perché «Adesso» e «Comandi» stiano interi. |
 | `M.schermata(s)` | Chiamata in fondo a ogni schermata della lezione. Riapre il riquadro (briefing e spiegazione lo chiudono, lezione.lua:70 e 421). Aggiunge a `stato.destra` quello del fornitore. Chiama `fornitore.su_schermata(s)`. |
 | `M.mostra(titolo, adesso, comandi, altre)` | Il riquadro delle schermate di `vivo` (riepilogo, elenco, attesa). |
 | `M.eco(chunks)` | Mette l'ultimo esito in «Controllo», che resta fino al prossimo cambio del testo. |
-| `M.adesso_batti(x) → string` | Pura. `x = { codice, righe, r, c, modo, frecce, cambiato }`. Dà la frase della tabella della 3.3. |
-| `M.carattere(ch) → string\|nil` | Pura: G11. |
+| `M.adesso_batti(x) → string` | Pura. `x = { codice, righe, r, c, modo, frecce, cambiato, annullato }`: `annullato` vuol dire che la storia degli annullamenti (`undotree().seq_cur`) è più indietro di quella dell'ultima uscita dalla scrittura. Dà la frase della tabella della 3.3. |
+| `M.cambio_voluto(buf)` | Il testo di adesso è quello «giusto»: lo chiamano l'uscita dalla scrittura (`ModeChanged`, perché con ‹Ctrl-c› `InsertLeave` non scatta), l'apertura di Batti e la bozza rimessa. In NORMAL un testo diverso da questo è un testo cambiato. |
+| `M.carattere(ch) → string\|nil, string` | Pura: G11. Il secondo valore è la nota sulle lettere maiuscole fra i tasti (`maiuscola`, `maiuscole`), o `''`. |
 | `M.posto() → nil \| { titolo, testo }` | Il posto sbagliato in cui si è adesso (3.4). |
 | `M.riprendi(win, buf) → boolean` | Da schermo.lua. Se c'è una lezione aperta, rimette `buf` in `win`, ne fa la finestra principale e ridisegna il riquadro (e, nel tempo B, l'OBIETTIVO). |
 | `M.esci_da_finestra_in_piu() → boolean` | Da `DattiloEsci`. Se il cursore è in una finestra in più, la chiude e dà vero. |
 | `M.fine(s) → boolean` | Passa al fornitore. |
 | `M.modifica_fatta(s, tasti)` (tempo B) | `mod_fatta` in «Controllo». |
 | `M.ultimo() → { titolo, sezioni, tipo }` | L'ultimo riquadro disegnato, per le prove. |
+| `M.fornitore()` | Il fornitore acceso, per le prove. |
+| `M.ETICHETTA` | La larghezza della colonna delle etichette del riquadro della guida: 11, perché «Controllo» più due spazi non sta nei 9 di oggi. |
 
 **`lua/dattilo/guida_testi.lua`** (nuovo): tutte le frasi della 3.3 e della 3.4, coi nomi scritti lì. Ha anche `M.neovim(tasto) → string`, che traduce un tasto della guida nella notazione di Neovim: ‹Invio› → `<CR>`, ‹Ctrl-k› → `<C-k>`, ‹<› → `<lt>`, ‹Fine› → `<End>`. Lo usa il robot delle prove (7.2).
 
@@ -1018,7 +1038,7 @@ Oggi niente la accende fuori da `vivo`: il dattilo di oggi non cambia.
 | `M.destra() → string` | Fornitore: « · 2 nuove», « · sessione finita: niente lezioni nuove» o « · Dal vivo spento: niente lezioni nuove». |
 | `M.scrivi_stato()` | Riscrive `stato.json` in modo atomico, solo se è cambiato. |
 
-**`lua/dattilo/ui.lua`**: nessun cambio. La guida usa `ui.tip`, `ui.altezza_tip` e `ui.chiudi_tip` così come sono.
+**`lua/dattilo/ui.lua`**: due aggiunte, senza effetto sul dattilo di oggi (cambiato costruendo: prima qui c'era «nessun cambio»). `ui.sezioni`, `ui.riquadro` e `ui.tip` hanno un parametro in più, facoltativo, per la larghezza della colonna delle etichette (senza, vale 9 come oggi); e c'è `ui.tip_aperto()`, che dice se il riquadro è aperto, per ridisegnarlo quando la finestra cambia misura. Per il resto la guida usa `ui.tip`, `ui.altezza_tip` e `ui.chiudi_tip` così come sono.
 
 **Tempo B, in più.**
 - **`lua/dattilo/formato.lua`** (righe 291-312 e 344-353): la Modifica può avere il blocco ```` ```js partenza ````, che diventa `m.partenza` invece dell'obiettivo di prima. Può avere anche `### Tasti`, che dà `m.tasti = { { tasti, cosa } }`. Con `### Tasti`, `mostra` sono i pezzi, e i pezzi messi in fila devono essere uguali a `soluzione`. Gli errori nuovi:
@@ -1350,3 +1370,27 @@ Tutto in cartelle mie sotto `/tmp/claude-1000/rifallo-prove/` (prima versione) e
 - **I digrammi da Lua:** `digraph_get('<<') .. digraph_get(',.') .. digraph_get('->')` = «…→; `digraph_getlist(true)` ha 1366 voci; `★` ha `*2`; `🙂` non ne ha.
 - **La soluzione dell'esempio della 5.5** (`2G$i.replace(/[O0U]/g, (x) => SIMILI[x])<Esc>`): con la stessa chiamata di `controlla.lua:27-40`, dal codice di partenza arriva all'obiettivo; `conta_tasti` dà 41.
 - **ui2** c'è in Neovim 0.12.6 (`vim._core.ui2`), segnato come sperimentale.
+
+---
+
+## Cambiato costruendo (24/11)
+
+I testi della guida nuovi o cambiati rispetto a quelli approvati, uno per riga, col loro nome in `guida_testi.lua`. Le ragioni sono le stesse per tutti: senza, chi segue solo la guida perderebbe testo buono o resterebbe ferma. Se una frase non piace, si cambia lì e basta.
+
+**Testi.**
+- `batti_annullato` (nuovo): «Hai annullato del testo che avevi scritto (in NORMAL il tasto u annulla). ‹g› ‹+›: lo rimette; ripetilo finché questa frase non cambia.»
+- `batti_spezzata_meta` (nuovo): «La riga %d è stata spezzata in due da un a capo. ‹Backspace›: premilo %s e la riga %d torna intera, col cursore nel punto dove si era spezzata; poi ‹Fine›: vai in fondo alla riga e continua a scrivere.»
+- `batti_continua_i` (nuovo, al posto di `batti_indietro_i` quando la riga è intera): «Fin qui è tutto giusto: si va avanti dalla fine della riga %d, l'ultima che hai scritto. ‹Esc›: smetti di scrivere; poi ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga.»
+- `batti_continua_n` (nuovo, al posto di `batti_indietro_n` quando la riga è intera): «Fin qui è tutto giusto: si va avanti dalla fine della riga %d, l'ultima che hai scritto. ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga.»
+- `frecce_n` (nuovo, la riga 13 della 3.4 in NORMAL): «Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹A›: torni a scrivere in fondo alla riga. Per spostarti, in NORMAL: ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra.»
+- `batti_carattere` (cambiato: in fondo dice le maiuscole): «Il prossimo carattere, %s, non è sulla tastiera. %s: lo scrive (tieni premuto Ctrl e premi la lettera, poi gli altri tasti%s).»
+- `maiuscola` e `maiuscole` (nuovi pezzi di `batti_carattere`): «; %s maiuscola», «; %s e %s maiuscole».
+- `una_volta` e `volte` (pezzi di `batti_spezzata`, prima scritti nel codice): «una volta», «%d volte».
+
+**Ordine e regole di «Adesso» in Batti** (la tabella della 3.3 è già quella nuova).
+- In INSERT la riga spezzata a metà del testo scritto viene prima di tutto: con ‹Fine› e poi ‹Backspace› la coda scesa giù si cancellerebbe.
+- In INSERT ‹Fine› viene prima del rosso: col rosso a destra del cursore ‹Backspace› cancellerebbe le lettere giuste a sinistra.
+- In INSERT vale `k ≠ r`, non solo `k < r`: con la riga da finire sotto il cursore, ‹Invio› aprirebbe una riga in più e tutto sotto diventerebbe rosso. A metà di una riga intera, con un'altra da finire, si va subito lì.
+- In NORMAL `batti_annullato` e `batti_cambiato` vengono prima di «niente scritto»: dopo un `dd` o un ‹u› che svuotano il buffer, ‹i› farebbe riscrivere tutto.
+- Con la guida la nota «Riga vuota: … ‹Invio› e vai avanti.» di Batti non si mostra (‹Invio› senza i due punti, G3).
+

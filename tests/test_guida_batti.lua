@@ -51,7 +51,7 @@ end
 
 T['16 INSERT, il prossimo carattere non è sulla tastiera: il digramma'] = function()
   uguale(adesso({ 'const s = "' }, 1, 11, 'i', nil, { 'const s = "«ciao»";' }),
-    TT.f('batti_carattere', '«', '‹Ctrl-k› ‹<› ‹<›'))
+    TT.f('batti_carattere', '«', '‹Ctrl-k› ‹<› ‹<›', ''))
 end
 
 -- Oltre la tabella: i punti dove la tabella del progetto, presa alla lettera, farebbe perdere
@@ -103,6 +103,57 @@ T['23 in INSERT il cursore va in fondo anche prima del digramma'] = function()
   uguale(adesso({ 'const s = "' }, 1, 5, 'i', nil, { 'const s = "«ciao»";' }), TT.batti_cursore)
 end
 
+-- Un a capo a metà di quello che si era scritto: la coda scende nella riga dopo, col rientro.
+-- ‹Fine› e poi ‹Backspace› cancellerebbero il testo buono sceso giù: i ‹Backspace› contati dalla
+-- colonna del cursore riuniscono la riga, e la frase dice che si torna nel punto della spaccatura.
+T['24 INSERT, riga spezzata a metà del testo scritto: Backspace contati, prima di Fine'] = function()
+  uguale(adesso({ C[1], '    if (', '    typeof a' }, 3, 4, 'i'), TT.f('batti_spezzata_meta', 2, '2 volte', 2))
+  uguale(adesso({ C[1], '    if (', 'typeof a' }, 3, 0, 'i'), TT.f('batti_spezzata_meta', 2, 'una volta', 2))
+  uguale(adesso({ C[1], '    ', '    if (typeof a' }, 3, 4, 'i'), TT.f('batti_spezzata_meta', 2, '2 volte', 2))
+  -- quello che è sceso non è l'inizio giusto del grigio: non è una riga spezzata
+  uguale(adesso({ C[1], '    if (', '    xyz' }, 3, 4, 'i'), TT.batti_cursore)
+  -- il cursore non è nel rientro: prima Fine
+  uguale(adesso({ C[1], '    if (', '    typeof a' }, 3, 6, 'i'), TT.batti_cursore)
+end
+
+-- La riga da cui si continua è intera, solo è l'ultima scritta: «non è finita» sarebbe falso.
+T['25 riga intera ma ultima scritta: si continua da lì, senza dire che non è finita'] = function()
+  uguale(adesso({ C[1], C[2] }, 1, #C[1], 'i'), TT.f('batti_continua_i', 2, 2, 2))
+  uguale(adesso({ C[1], C[2] }, 1, 3, 'n'), TT.f('batti_continua_n', 2, 2, 2))
+  -- la riga 2 a metà resta «non è finita»
+  uguale(adesso({ C[1], '    if (t' }, 1, 3, 'n'), TT.f('batti_indietro_n', 2, 2, 2))
+end
+
+-- Un clic a metà di una riga intera mentre un'altra è da finire: niente ‹Fine›, subito la frase
+-- che porta alla riga da finire.
+T['26 INSERT a metà di una riga intera, con un altra da finire: si va lì'] = function()
+  uguale(adesso({ C[1], '    if (t' }, 1, 5, 'i'), TT.f('batti_indietro_i', 2, 2, 2))
+  uguale(adesso({ C[1], C[2] }, 1, 5, 'i'), TT.f('batti_continua_i', 2, 2, 2))
+end
+
+T['27 NORMAL, una freccia appena premuta: la frase comincia da A'] = function()
+  uguale(adesso({ 'fun' }, 1, 2, 'n', { frecce = true }), TT.frecce_n)
+  vero(TT.frecce_n:find('^[^‹]*‹A›'), TT.frecce_n)
+end
+
+T['28 rientro di 2 spazi: il Backspace due volte'] = function()
+  uguale(adesso({ 'if (', '  ' }, 2, 2, 'i', nil, { 'if (a) {', '  b();', '}' }), TT.f('batti_spezzata', 1, '2 volte', 1))
+end
+
+-- Le lettere maiuscole fra i tasti si dicono, come la G: ‹E› ‹'›, ‹*› ‹X›, ‹O› ‹K›, ‹Ctrl-v› ‹U›.
+T['29 digrammi con le maiuscole: la frase le dice'] = function()
+  local function due(ch) return { guida.carattere(ch) } end
+  uguale(due('É'), { '‹Ctrl-k› ‹E› ‹\'›', '; E maiuscola' })
+  uguale(due('×'), { '‹Ctrl-k› ‹*› ‹X›', '; X maiuscola' })
+  uguale(due('✓'), { '‹Ctrl-k› ‹O› ‹K›', '; O e K maiuscole' })
+  uguale(due('—'), { '‹Ctrl-k› ‹-› ‹M›', '; M maiuscola' })
+  uguale(due('«'), { '‹Ctrl-k› ‹<› ‹<›', '' })
+  uguale(due('🙂'), { '‹Ctrl-v› ‹U› ‹0› ‹0› ‹0› ‹1› ‹F› ‹6› ‹4› ‹2›', '; U maiuscola' })
+  uguale(adesso({ 'const s = "' }, 1, 11, 'i', nil, { 'const s = "É";' }),
+    TT.f('batti_carattere', 'É', '‹Ctrl-k› ‹E› ‹\'›', '; E maiuscola'))
+  vero(TT.f('batti_carattere', 'É', '‹Ctrl-k› ‹E› ‹\'›', '; E maiuscola'):find('altri tasti; E maiuscola).', 1, true))
+end
+
 T['carattere: digrammi, tastiera italiana e Ctrl-v'] = function()
   uguale(guida.carattere('«'), '‹Ctrl-k› ‹<› ‹<›')
   uguale(guida.carattere('…'), '‹Ctrl-k› ‹,› ‹.›')
@@ -129,7 +180,7 @@ T['ogni frase di Adesso in Batti ha almeno un tasto'] = function()
   for _, nome in ipairs({ 'batti_vuoto', 'batti_cambiato', 'batti_annullato', 'batti_finito_i', 'batti_finito_n',
     'batti_maiuscole', 'batti_errore', 'batti_spezzata', 'batti_indietro_i', 'batti_rosso_qui', 'batti_rosso_n',
     'batti_indietro_n', 'batti_riprendi', 'batti_cursore', 'batti_riga_vuota', 'batti_fine_riga',
-    'batti_scrivi' }) do
+    'batti_scrivi', 'batti_spezzata_meta', 'batti_continua_i', 'batti_continua_n', 'frecce_n' }) do
     vero(TT[nome] and TT[nome]:find('‹', 1, true), nome)
   end
 end

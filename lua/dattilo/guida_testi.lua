@@ -19,18 +19,29 @@ M.titoli = {
 M.batti_vuoto = '‹i›: entri in scrittura. In basso a sinistra NORMAL diventa INSERT, e da lì ogni tasto che premi scrive sopra il grigio.'
 M.batti_cambiato = 'Il testo è cambiato mentre eri in NORMAL, dove le lettere sono comandi. ‹u›: annulla l\'ultimo cambio; premilo più volte per tornare più indietro.'
 -- Non è nella 3.3: dopo un u di troppo, un altro u toglierebbe altro testo buono (compito 3).
-M.batti_annullato = 'Hai annullato del testo che avevi scritto (in NORMAL il tasto u annulla). ‹g› ‹+›: lo rimette; ripetilo finché il testo torna com\'era.'
+M.batti_annullato = 'Hai annullato del testo che avevi scritto (in NORMAL il tasto u annulla). ‹g› ‹+›: lo rimette; ripetilo finché questa frase non cambia.'
 M.batti_finito_i = 'Hai scritto tutto. ‹Esc›: smetti di scrivere (in basso torna NORMAL). Poi ‹:w› ‹Invio›: salvi e node controlla il codice.'
 M.batti_finito_n = '‹:w› ‹Invio›: salvi e node controlla il codice. I due punti si fanno con Maiusc e il tasto del punto; il comando compare in fondo allo schermo.'
 M.batti_maiuscole = 'Il rosso è in MAIUSCOLO dove il grigio è minuscolo: forse è acceso il Bloc Maiusc. Spegnilo; poi ‹Backspace›: cancella le lettere rosse.'
 M.batti_errore = 'Il rosso è un errore. ‹Backspace›: cancella l\'ultima lettera; premilo finché il rosso sparisce, poi riscrivi giusto.'
 M.batti_spezzata = 'La riga %d è stata spezzata da un a capo arrivato troppo presto. ‹Backspace›: premilo %s e torni in fondo alla riga %d; poi continua a scrivere.'
+-- Non è nella 3.3: un a capo a metà di quello che si era scritto; il resto è sceso nella riga dopo.
+M.batti_spezzata_meta = 'La riga %d è stata spezzata in due da un a capo. ‹Backspace›: premilo %s e la riga %d torna intera, col cursore nel punto dove si era spezzata; poi ‹Fine›: vai in fondo alla riga e continua a scrivere.'
 M.batti_indietro_i = 'La riga %d non è finita. ‹Esc›: smetti di scrivere; poi ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga.'
+-- Non sono nella 3.3: la riga da cui si continua è intera, è solo l'ultima scritta.
+M.batti_continua_i = 'Fin qui è tutto giusto: si va avanti dalla fine della riga %d, l\'ultima che hai scritto. ‹Esc›: smetti di scrivere; poi ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga.'
+M.batti_continua_n = 'Fin qui è tutto giusto: si va avanti dalla fine della riga %d, l\'ultima che hai scritto. ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga.'
 M.batti_rosso_qui = 'C\'è del rosso in questa riga. ‹A›: scrivi in fondo alla riga; poi ‹Backspace›: cancella fino al rosso, e riscrivi giusto.'
 M.batti_rosso_n = 'C\'è del rosso alla riga %d. ‹%d› ‹G›: vai alla riga %d; poi ‹A›: scrivi in fondo alla riga; poi ‹Backspace›: cancella fino al rosso, e riscrivi giusto.'
 M.batti_indietro_n = 'La riga %d non è finita. ‹%d› ‹G›: vai alla riga %d (il numero, poi G maiuscola); poi ‹A›: scrivi in fondo a quella riga.'
 M.batti_riprendi = '‹A›: torni a scrivere in fondo a questa riga. (Non i: scriverebbe prima dell\'ultima lettera.)'
-M.batti_carattere = 'Il prossimo carattere, %s, non è sulla tastiera. %s: lo scrive (tieni premuto Ctrl e premi la lettera, poi gli altri tasti).'
+-- il terzo %s è '' oppure maiuscola/maiuscole, qui sotto
+M.batti_carattere = 'Il prossimo carattere, %s, non è sulla tastiera. %s: lo scrive (tieni premuto Ctrl e premi la lettera, poi gli altri tasti%s).'
+M.maiuscola = '; %s maiuscola'
+M.maiuscole = '; %s e %s maiuscole'
+-- le volte di ‹Backspace› in batti_spezzata
+M.una_volta = 'una volta'
+M.volte = '%d volte'
 M.batti_cursore = 'Il cursore non è in fondo a quello che hai scritto. ‹Fine›: lo porta in fondo alla riga; poi continua.'
 M.batti_riga_vuota = 'Riga finita. ‹Invio› ‹Invio›: vai a capo due volte, perché nel grigio la riga dopo è vuota.'
 M.batti_fine_riga = 'Riga finita. ‹Invio›: vai a capo; gli spazi all\'inizio della riga dopo li mette dattilo.'
@@ -89,12 +100,15 @@ M.posti = {
   divisa = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due (l\'ha fatto Ctrl-w o un comando come :split). ‹:q› ‹Invio›: chiudi questa finestra e torni al codice.' },
   divisa_principale = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo la finestra del codice; il riquadro torna da solo.' },
   frecce = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹Esc›: smetti di scrivere; poi ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra; poi ‹A›: torni a scrivere in fondo alla riga.' },
+  -- in NORMAL ‹Esc› non fa niente: si comincia da ‹A›
+  frecce_n = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹A›: torni a scrivere in fondo alla riga. Per spostarti, in NORMAL: ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra.' },
   ex = { titolo = 'MODALITÀ EX', testo = 'Sei nella modalità Ex (l\'apre g seguito da Q). Scrivi visual, poi ‹Invio›: torni allo schermo normale.' },
   sconosciuto = { titolo = 'POSTO SCONOSCIUTO', testo = 'Sei in una modalità di Neovim che la guida non conosce (in basso: %s). ‹Esc›: di solito riporta in NORMAL; se non basta, ‹:q› ‹Invio›: lasci la lezione, che resta salvata.' },
 }
 
--- «Adesso» quando una freccia è appena stata premuta: è la riga 13 dei posti
+-- «Adesso» quando una freccia è appena stata premuta: è la riga 13 dei posti (in INSERT e in NORMAL)
 M.frecce = M.posti.frecce.testo
+M.frecce_n = M.posti.frecce_n.testo
 
 -- Le spiegazioni dei comandi noti (3.4, riga 3)
 M.spiega_comando = {

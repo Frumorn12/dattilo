@@ -158,8 +158,17 @@ for _, ch in ipairs(vim.fn.split('àèéìòùç°£§€', '\\zs')) do TASTIERA
 
 local digrammi = nil -- [carattere] = la prima coppia di tasti ASCII stampabili che lo dà
 
+-- «; E maiuscola», «; O e K maiuscole» o niente: le lettere maiuscole fra i tasti, da dire (come la G).
+local function nota_maiuscole(lettere)
+  if lettere[2] == lettere[1] then lettere[2] = nil end
+  if #lettere == 0 then return '' end
+  if #lettere == 1 then return T.f('maiuscola', lettere[1]) end
+  return T.f('maiuscole', lettere[1], lettere[2])
+end
+
 -- Come si scrive in Vim un carattere che non è sulla tastiera (G11): il digramma (‹Ctrl-k› e due
 -- tasti), oppure ‹Ctrl-v› ‹u› e quattro cifre, ‹Ctrl-v› ‹U› e otto sopra U+FFFF. nil se c'è il tasto.
+-- Il secondo valore è la nota sulle maiuscole (le cifre esadecimali vanno anche minuscole).
 function M.carattere(ch)
   if not ch or ch == '' or #ch == 1 or TASTIERA[ch] then return nil end
   if not digrammi then
@@ -169,23 +178,37 @@ function M.carattere(ch)
     end
   end
   local coppia = digrammi[ch]
-  if coppia then return '‹Ctrl-k› ‹' .. coppia:sub(1, 1) .. '› ‹' .. coppia:sub(2, 2) .. '›' end
+  if coppia then
+    local a, b = coppia:sub(1, 1), coppia:sub(2, 2)
+    local lettere = {}
+    for _, x in ipairs({ a, b }) do if x:match('%u') then lettere[#lettere + 1] = x end end
+    return '‹Ctrl-k› ‹' .. a .. '› ‹' .. b .. '›', nota_maiuscole(lettere)
+  end
   local n = vim.fn.char2nr(ch)
   local tasti = { '‹Ctrl-v›', n > 0xFFFF and '‹U›' or '‹u›' }
   for cifra in string.format(n > 0xFFFF and '%08X' or '%04X', n):gmatch('.') do tasti[#tasti + 1] = '‹' .. cifra .. '›' end
-  return table.concat(tasti, ' ')
+  return table.concat(tasti, ' '), nota_maiuscole(n > 0xFFFF and { 'U' } or {})
 end
 
-local function volte(n) return n == 1 and 'una volta' or (n .. ' volte') end
+local function volte(n) return n == 1 and T.una_volta or T.f('volte', n) end
 
--- La frase di «Adesso» in Batti (3.3): vale il primo caso che si applica, dall'alto.
--- x = { codice, righe, r, c, modo, frecce?, cambiato?, annullato? }; c è la colonna in byte, da 0.
--- In quattro punti si scosta dalla tabella del progetto, perché lì la persona perderebbe lavoro
--- o andrebbe nel posto sbagliato:
+-- «La riga k non è finita», o, se la riga k è intera ed è solo l'ultima scritta, «si va avanti
+-- dalla fine della riga k». modo: 'i' o 'n'.
+local function indietro(modo, k, righe, codice)
+  return T.f((righe[k] == codice[k] and 'batti_continua_' or 'batti_indietro_') .. modo, k, k, k)
+end
+
+-- La frase di «Adesso» in Batti (3.3, nell'ordine di «Cambiato costruendo»): vale il primo caso
+-- che si applica, dall'alto. x = { codice, righe, r, c, modo, frecce?, cambiato?, annullato? };
+-- c è la colonna in byte, da 0. Dove si scosta dalla prima tabella del progetto è perché lì la
+-- persona perderebbe lavoro o resterebbe ferma:
+-- - in INSERT, una riga spezzata a metà di quello che si era scritto (il resto è sceso, col
+--   rientro, nella riga dopo) si riunisce coi ‹Backspace› contati, prima di tutto il resto: ‹Fine›
+--   e poi ‹Backspace› cancellerebbero il testo buono sceso giù;
 -- - in INSERT ‹Fine› viene prima del rosso: col rosso a destra del cursore ‹Backspace›
 --   cancellerebbe le lettere giuste a sinistra;
 -- - in INSERT la riga da finire può stare anche sotto il cursore (k > r): ‹Invio› aprirebbe una
---   riga in più e tutto sotto diventerebbe rosso;
+--   riga in più e tutto sotto diventerebbe rosso; a metà di una riga intera si va subito lì;
 -- - in NORMAL, dopo un u di troppo (annullato), ‹g› ‹+› rimette il testo, e un altro ‹u› ne
 --   toglierebbe ancora;
 -- - in NORMAL annullato e cambiato vengono prima di «niente scritto»: ‹i› farebbe riscrivere
@@ -209,7 +232,19 @@ function M.adesso_batti(x)
   if x.modo == 'i' then
     if x.frecce then return T.frecce end
     if esito.finito then return T.batti_finito_i end
-    if c < #riga then return T.batti_cursore end
+    -- un a capo a metà di quello che si era scritto: il cursore è nel rientro della riga dopo
+    -- quella da finire, e quello che ha a destra, rimesso in fondo alla riga sopra, è ancora
+    -- l'inizio giusto del grigio. Ogni ‹Backspace› toglie fino a 4 spazi (softtabstop), l'ultimo riunisce.
+    local destra = riga:sub(c + 1)
+    if k == r - 1 and destra ~= '' and riga:sub(1, c):match('^ *$')
+      and vim.startswith(codice[k] or '', righe[k] .. destra) then
+      return T.f('batti_spezzata_meta', k, volte(math.ceil(c / 4) + 1), k)
+    end
+    if c < #riga then
+      -- a metà di una riga intera, con un'altra da finire: subito la frase che porta lì
+      if riga == grigio and k ~= r then return indietro('i', k, righe, codice) end
+      return T.batti_cursore
+    end
     if rosso[r] then
       local da = rosso[r]
       local scritto, atteso = riga:sub(da + 1, da + 1), grigio:sub(da + 1, da + 1)
@@ -219,24 +254,25 @@ function M.adesso_batti(x)
     if k == r - 1 and riga:match('^ *$') then
       return T.f('batti_spezzata', k, volte(math.ceil(#riga / 4) + 1), k)
     end
-    if k ~= r then return T.f('batti_indietro_i', k, k, k) end
+    if k ~= r then return indietro('i', k, righe, codice) end
     local prossimo = grigio:sub(#riga + 1):match('^[%z\1-\127\194-\244][\128-\191]*')
-    local tasti = M.carattere(prossimo)
-    if tasti then return T.f('batti_carattere', prossimo, tasti) end
+    local tasti, nota = M.carattere(prossimo)
+    if tasti then return T.f('batti_carattere', prossimo, tasti, nota) end
     if riga == grigio and codice[r + 1] == '' then return T.batti_riga_vuota end
     if riga == grigio then return T.batti_fine_riga end
     return T.batti_scrivi
   end
 
-  -- NORMAL, e per ora ogni modo che non scrive: i posti sbagliati (3.4) arrivano prima, compito 5
+  -- NORMAL. Per ora ci arrivano anche gli altri modi (VISUAL, REPLACE, la riga dei comandi…),
+  -- che sono posti sbagliati (3.4): le loro frasi arrivano col compito 5.
   if x.annullato then return T.batti_annullato end
   if x.cambiato then return T.batti_cambiato end
   if #righe == 1 and righe[1] == '' then return T.batti_vuoto end
-  if x.frecce then return T.frecce end
+  if x.frecce then return T.frecce_n end
   if esito.finito then return T.batti_finito_n end
   if rosso[r] then return T.batti_rosso_qui end
   if prima_rossa then return T.f('batti_rosso_n', prima_rossa, prima_rossa, prima_rossa) end
-  if k ~= r then return T.f('batti_indietro_n', k, k, k) end
+  if k ~= r then return indietro('n', k, righe, codice) end
   return T.batti_riprendi
 end
 

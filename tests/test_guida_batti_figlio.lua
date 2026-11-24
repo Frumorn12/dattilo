@@ -24,38 +24,9 @@ local function in_batti(F, id)
   uguale(F:lua('return require("dattilo.lezione").s.passo'), 'batti')
 end
 
--- La prima fila di tasti di una frase, nella notazione di Neovim: «‹2› ‹G›: …» → '2G'.
-local function prima_fila(s)
-  local tasti, i = {}, s:find('‹', 1, true)
-  while i do
-    local _, f, k = s:find('^‹([^›]*)›', i)
-    if not f then break end
-    tasti[#tasti + 1] = TT.neovim(k)
-    if s:find('^ ‹', f + 1) then i = f + 2 else break end
-  end
-  return table.concat(tasti)
-end
-
--- Preme la prima fila di «Adesso», tante volte quante dice la frase («premilo 2 volte»).
-local function premi_primo(F)
-  local a = adesso(F)
-  local volte = tonumber(a:match('premilo (%d+) volte')) or 1
-  local fila = prima_fila(a)
-  vero(fila ~= '', 'nessun tasto in: ' .. a)
-  for _ = 1, volte do F:input(fila) end
-  return a
-end
-
--- Segue «Adesso» premendo ogni volta la sua prima fila, finché `fatto(F)`; al massimo `max` passi.
-local function segui(F, fatto, max)
-  local visti = {}
-  for _ = 1, max or 10 do
-    if fatto(F) then return visti end
-    visti[#visti + 1] = premi_primo(F)
-  end
-  vero(fatto(F), 'seguendo la guida non ci si arriva: ' .. vim.inspect(visti))
-  return visti
-end
+-- Il robot di chi non sa niente (tests/vivo_figlio.lua): la prima fila di «Adesso», e seguirla.
+local function premi_primo(F) return F:premi_primo() end
+local function segui(F, fatto, max) return F:segui(fatto, max) end
 
 local function con(o, fn)
   o = vim.tbl_extend('keep', o or {}, { vivo = true })
@@ -142,13 +113,13 @@ T['il digramma scrive il carattere'] = function()
     F:input('<CR>')
     scrivi(F, 'return "')
     vero(adesso(F):find('‹Ctrl-k› ‹<› ‹<›', 1, true), adesso(F))
-    uguale(adesso(F), TT.f('batti_carattere', '«', '‹Ctrl-k› ‹<› ‹<›'))
+    uguale(adesso(F), TT.f('batti_carattere', '«', '‹Ctrl-k› ‹<› ‹<›', ''))
     F:input('<C-k><lt><lt>')
     uguale(F:righe()[2], '    return "«')
     uguale(errori(F), 0)
     -- anche la chiusa: la guida dice il suo digramma, e premuto scrive »
     scrivi(F, '" + nome + "')
-    uguale(adesso(F), TT.f('batti_carattere', '»', '‹Ctrl-k› ‹>› ‹>›'))
+    uguale(adesso(F), TT.f('batti_carattere', '»', '‹Ctrl-k› ‹>› ‹>›', ''))
     premi_primo(F)
     uguale(F:righe()[2], '    return "«" + nome + "»')
     uguale(errori(F), 0)
@@ -343,11 +314,33 @@ T['situazione: freccia, la frase delle frecce e poi ‹Esc›'] = function()
     premi_primo(F)
     uguale(F:modo(), 'n')
     uguale(adesso(F), TT.batti_riprendi)
-    -- in NORMAL la freccia dà la stessa frase, e un movimento con h la toglie
+    -- in NORMAL la freccia dà la frase che comincia da ‹A› (lì ‹Esc› non fa niente), e un
+    -- movimento con h la toglie
     F:input('<Left>')
-    uguale(adesso(F), TT.frecce)
+    uguale(adesso(F), TT.frecce_n)
     F:input('h')
     uguale(adesso(F), TT.batti_riprendi)
+  end)
+end
+
+-- In NORMAL ‹Esc› non fa niente e non toglierebbe la frase: «premo, e mi dice di ripremere la
+-- stessa cosa». La frase comincia da ‹A›, e fatta la mossa se ne va.
+T['freccia in NORMAL: il primo tasto della frase la fa andare via'] = function()
+  con({}, function(F)
+    in_batti(F)
+    F:input('i')
+    scrivi(F, 'func')
+    F:input('<Esc>')
+    F:input('<Left>')
+    uguale(adesso(F), TT.frecce_n)
+    premi_primo(F)
+    uguale(F:modo(), 'i')
+    vero(adesso(F) ~= TT.frecce_n, adesso(F))
+    uguale(adesso(F), TT.batti_scrivi)
+    uguale(cursore(F), { 1, 4 })
+    scrivi(F, 'tion')
+    uguale(F:righe(), { 'function' })
+    uguale(errori(F), 0)
   end)
 end
 
@@ -494,6 +487,68 @@ T['un clic sulla riga sopra mentre si scrive: si torna giù, senza righe in più
     segui(F, function() return F:modo() == 'i' and cursore(F)[1] == 2 end)
     uguale(F:righe(), { C[1], '    if (t' })
     uguale(cursore(F), { 2, #'    if (t' })
+  end)
+end
+
+-- Un clic a metà di quello che si era scritto e poi ‹Invio›: la coda della riga scende nella riga
+-- dopo, col rientro. ‹Fine› e poi ‹Backspace› la cancellerebbero: i ‹Backspace› contati la riuniscono.
+T['Invio a metà del testo scritto: seguendo la guida la riga torna intera'] = function()
+  con({}, function(F)
+    in_batti(F)
+    F:input('i')
+    scrivi(F, C[1])
+    F:input('<CR>')
+    scrivi(F, 'if (typeof a')
+    F:clic(2, 8)
+    uguale(cursore(F), { 2, 8 })
+    F:input('<CR>')
+    uguale(F:righe(), { C[1], '    if (', '    typeof a' })
+    uguale(cursore(F), { 3, 4 })
+    uguale(adesso(F), TT.f('batti_spezzata_meta', 2, '2 volte', 2))
+    local visti = segui(F, function() return #F:righe() == 2 end)
+    uguale(visti, { TT.f('batti_spezzata_meta', 2, '2 volte', 2) })
+    uguale(F:righe(), { C[1], '    if (typeof a' })
+    -- il cursore è nel punto della spaccatura, come dice la frase; poi ‹Fine› e si continua
+    uguale(cursore(F), { 2, 8 })
+    uguale(adesso(F), TT.batti_cursore)
+    premi_primo(F)
+    scrivi(F, ' !== "number") return 0;')
+    uguale(F:righe()[2], C[2])
+    uguale(errori(F), 0)
+  end)
+end
+
+T['un clic a metà di una riga intera, con un altra da finire: si va subito lì'] = function()
+  con({}, function(F)
+    in_batti(F)
+    F:input('i')
+    scrivi(F, C[1])
+    F:input('<CR>')
+    scrivi(F, 'if (t')
+    F:clic(1, 5)
+    uguale(cursore(F), { 1, 5 })
+    uguale(F:modo(), 'i')
+    uguale(adesso(F), TT.f('batti_indietro_i', 2, 2, 2))
+    segui(F, function() return F:modo() == 'i' and cursore(F)[1] == 2 end)
+    uguale(F:righe(), { C[1], '    if (t' })
+    uguale(cursore(F), { 2, #'    if (t' })
+  end)
+end
+
+-- La riga 2 è intera ed è l'ultima scritta: la frase non dice che «non è finita».
+T['sopra l ultima riga scritta, intera: si continua da lì'] = function()
+  con({}, function(F)
+    in_batti(F)
+    F:input('i')
+    scrivi(F, C[1])
+    F:input('<CR>')
+    scrivi(F, vim.trim(C[2]))
+    F:clic(1, #C[1])
+    uguale(adesso(F), TT.f('batti_continua_i', 2, 2, 2))
+    local visti = segui(F, function() return F:modo() == 'i' and cursore(F)[1] == 2 end)
+    uguale(visti, { TT.f('batti_continua_i', 2, 2, 2), TT.f('batti_continua_n', 2, 2, 2), TT.batti_riprendi })
+    uguale(cursore(F), { 2, #C[2] })
+    uguale(adesso(F), TT.batti_fine_riga)
   end)
 end
 

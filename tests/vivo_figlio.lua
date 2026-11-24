@@ -128,6 +128,49 @@ function F:a_schermo()
   return { alto = r.alto, righe = r.righe, sezioni = sezioni, finisce = finisce }
 end
 
+-- «Adesso» dell'ultimo riquadro (nil se non c'è).
+function F:adesso()
+  local r = self:riquadro()
+  return r and r.sezioni.Adesso
+end
+
+-- La prima fila di tasti di una frase, nella notazione di Neovim: «‹2› ‹G›: …» → '2G'.
+function M.prima_fila(s)
+  local TT = require('dattilo.guida_testi')
+  local tasti, i = {}, s:find('‹', 1, true)
+  while i do
+    local _, f, k = s:find('^‹([^›]*)›', i)
+    if not f then break end
+    tasti[#tasti + 1] = TT.neovim(k)
+    if s:find('^ ‹', f + 1) then i = f + 2 else break end
+  end
+  return table.concat(tasti)
+end
+
+-- Il robot di chi non sa niente: preme la prima fila di tasti di «Adesso», tante volte quante
+-- dice la frase («premilo 2 volte»). Rende la frase letta.
+function F:premi_primo()
+  local a = self:adesso()
+  vero(a, 'nessun Adesso nel riquadro')
+  local volte = tonumber(a:match('premilo (%d+) volte')) or 1
+  local fila = M.prima_fila(a)
+  vero(fila ~= '', 'nessun tasto in: ' .. a)
+  for _ = 1, volte do self:input(fila) end
+  return a
+end
+
+-- Segue «Adesso» premendo ogni volta la sua prima fila, finché `fatto(F)`; al massimo `max` passi.
+-- Rende le frasi lette, in ordine.
+function F:segui(fatto, max)
+  local visti = {}
+  for _ = 1, max or 10 do
+    if fatto(self) then return visti end
+    visti[#visti + 1] = self:premi_primo()
+  end
+  vero(fatto(self), 'seguendo la guida non ci si arriva: ' .. vim.inspect(visti))
+  return visti
+end
+
 -- Il testo di una frase della guida come lo mostra il riquadro, con gli spazi messi in fila:
 -- ‹k› diventa « k », come in ui.segmenti.
 function M.a_schermo(testo)
