@@ -79,6 +79,16 @@ function F:aspetta(cond, ms)
   return (vim.wait(ms or 3000, function() return cond(self) end, 20))
 end
 
+-- Un clic col tasto sinistro nella finestra corrente, sulla riga `riga` (da 1) e la colonna `col`
+-- (da 0) del testo: un clic vero, con nvim_input_mouse.
+function F:clic(riga, col)
+  local w = self:lua('local i = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1] return { i.winrow, i.wincol, i.textoff, i.topline }')
+  local r, c = w[1] - 1 + riga - w[4], w[2] - 1 + w[3] + col
+  vim.rpcrequest(self.canale, 'nvim_input_mouse', 'left', 'press', '', 0, r, c)
+  vim.rpcrequest(self.canale, 'nvim_input_mouse', 'left', 'release', '', 0, r, c)
+  vim.rpcrequest(self.canale, 'nvim_get_mode')
+end
+
 function F:messaggi() return vim.rpcrequest(self.canale, 'nvim_exec2', 'messages', { output = true }).output end
 
 -- L'ultimo riquadro della guida: { titolo, sezioni = { [etichetta] = testo }, tipo }; nil se non c'è ancora.

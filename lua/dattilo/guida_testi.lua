@@ -18,6 +18,8 @@ M.titoli = {
 -- «Adesso» in Batti
 M.batti_vuoto = '‹i›: entri in scrittura. In basso a sinistra NORMAL diventa INSERT, e da lì ogni tasto che premi scrive sopra il grigio.'
 M.batti_cambiato = 'Il testo è cambiato mentre eri in NORMAL, dove le lettere sono comandi. ‹u›: annulla l\'ultimo cambio; premilo più volte per tornare più indietro.'
+-- Non è nella 3.3: dopo un u di troppo, un altro u toglierebbe altro testo buono (compito 3).
+M.batti_annullato = 'Hai annullato del testo che avevi scritto (in NORMAL il tasto u annulla). ‹g› ‹+›: lo rimette; ripetilo finché il testo torna com\'era.'
 M.batti_finito_i = 'Hai scritto tutto. ‹Esc›: smetti di scrivere (in basso torna NORMAL). Poi ‹:w› ‹Invio›: salvi e node controlla il codice.'
 M.batti_finito_n = '‹:w› ‹Invio›: salvi e node controlla il codice. I due punti si fanno con Maiusc e il tasto del punto; il comando compare in fondo allo schermo.'
 M.batti_maiuscole = 'Il rosso è in MAIUSCOLO dove il grigio è minuscolo: forse è acceso il Bloc Maiusc. Spegnilo; poi ‹Backspace›: cancella le lettere rosse.'
