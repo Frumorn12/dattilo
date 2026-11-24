@@ -92,6 +92,38 @@ function F:riquadro()
   return { titolo = r.titolo, sezioni = sezioni, tipo = r.tipo }
 end
 
+-- Il riquadro com'è a schermo, letto dal buffer della sua finestra: { alto, righe, sezioni, finisce },
+-- dove alto è l'altezza della finestra, sezioni[etichetta] è il testo delle sue righe messe in fila
+-- e finisce[etichetta] è la sua ultima riga. nil se il riquadro è chiuso.
+function F:a_schermo()
+  local r = self:lua([[
+    local ui = require('dattilo.ui')
+    if not ui.tip_aperto() then return nil end
+    local w = ui.finestra_tip()
+    return { alto = vim.api.nvim_win_get_height(w), etichetta = require('dattilo.guida').ETICHETTA,
+      righe = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false) }]])
+  if r == nil or r == vim.NIL then return nil end
+  local sezioni, finisce, cur = {}, {}, nil
+  for i = 2, #r.righe - 1 do
+    local dentro = r.righe[i]:sub(#'│ ' + 1, #r.righe[i] - #' │')
+    local etichetta = vim.trim(dentro:sub(1, r.etichetta))
+    local testo = vim.trim(dentro:sub(r.etichetta + 1))
+    if etichetta ~= '' then cur = etichetta end
+    if cur and testo ~= '' then
+      sezioni[cur] = sezioni[cur] and (sezioni[cur] .. ' ' .. testo) or testo
+      finisce[cur] = testo
+    end
+  end
+  for k, v in pairs(sezioni) do sezioni[k] = (v:gsub('%s+', ' ')) end
+  return { alto = r.alto, righe = r.righe, sezioni = sezioni, finisce = finisce }
+end
+
+-- Il testo di una frase della guida come lo mostra il riquadro, con gli spazi messi in fila:
+-- ‹k› diventa « k », come in ui.segmenti.
+function M.a_schermo(testo)
+  return vim.trim((testo:gsub('‹(.-)›', ' %1 '):gsub('%s+', ' ')))
+end
+
 function F:chiudi()
   if self.chiuso then return end
   self.chiuso = true

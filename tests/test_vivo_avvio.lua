@@ -23,15 +23,85 @@ T['vivo senza cartella esce con 1 e dice come si usa'] = function()
   vero(r.stderr:find('uso: dattilo vivo <cartella> [opzioni di nvim]', 1, true), r.stderr)
 end
 
+T['vivo con un percorso che non è una cartella esce con 1 e dice come si usa'] = function()
+  local r = vim.system({ RADICE .. '/bin/dattilo', 'vivo', vim.fn.tempname() }, { env = env_finto(), text = true }):wait()
+  uguale(r.code, 1)
+  vero(r.stderr:find('uso: dattilo vivo <cartella> [opzioni di nvim]', 1, true), r.stderr)
+end
+
+T['vivo con una cartella relativa passa a Neovim percorsi assoluti'] = function()
+  local base = vim.fn.tempname()
+  vim.fn.mkdir(base .. '/una cartella', 'p', tonumber('700', 8))
+  local out = base .. '/visti'
+  local env = env_finto()
+  env.HOME = base .. '/casa'
+  -- -c gira prima di VimEnter: si scrive l'ambiente e si esce prima che si apra una lezione
+  local r = vim.system({ RADICE .. '/bin/dattilo', 'vivo', './una cartella', '--headless',
+    '-c', "call writefile([$DATTILO_VIVO, $XDG_DATA_HOME], '" .. out .. "')", '-c', 'qa!' },
+    { env = env, cwd = base, text = true }):wait(10000)
+  uguale(r.code, 0, r.stderr)
+  uguale(vim.fn.readfile(out), { base .. '/una cartella', base .. '/una cartella/dati' })
+end
+
+-- Nel figlio: l'ambiente, i comandi e le abbreviazioni che avvia accende restano lì, non nel
+-- processo delle prove.
 T['senza vivo la guida resta spenta'] = function()
-  vim.env.XDG_DATA_HOME = vim.fn.tempname()
-  require('dattilo').avvia({ radice = RADICE })
-  local lezione = require('dattilo.lezione')
-  lezione.apri('corso-c-antirez', 1)
-  uguale(lezione.guida, nil)
-  uguale(#vim.api.nvim_tabpage_list_wins(0), 1)
-  uguale(vim.fn.exists(':DattiloSalta'), 0)
-  lezione.chiudi()
+  M.con({}, function(F)
+    uguale(F:lua('return vim.env.DATTILO_VIVO'), vim.NIL)
+    F:lua('require("dattilo.lezione").apri("corso-c-antirez", 1)')
+    uguale(F:lua('return require("dattilo.lezione").guida == nil'), true)
+    uguale(F:lua('return require("dattilo.guida").attiva()'), false)
+    uguale(F:lua('return #vim.api.nvim_tabpage_list_wins(0)'), 1)
+    uguale(F:lua('return vim.fn.exists(":DattiloSalta")'), 0)
+  end)
+end
+
+local LUNGO = 'Node non accetta il codice: SyntaxError: Unexpected token, expected "," (riga 3, colonna 12): '
+  .. 'controlla le parentesi e le virgole di quella riga.'
+
+-- In Batti della prima lezione, con le dimensioni date e un Controllo lungo.
+local function batti_con_controllo(F, colonne, righe)
+  F:aspetta(function() return F:riquadro() ~= nil end)
+  F:lua('vim.o.columns, vim.o.lines = ...', colonne, righe)
+  F:input('<CR>')
+  F:lua('require("dattilo.guida").eco({ { ... } })', LUNGO)
+end
+
+for _, d in ipairs({ { 80, 24 }, { 120, 40 } }) do
+  T[string.format('a %dx%d un Controllo lungo non toglie righe ad Adesso e Comandi', d[1], d[2])] = function()
+    local TT = require('dattilo.guida_testi')
+    M.con({ cartella = M.cartella(), vivo = true }, function(F)
+      batti_con_controllo(F, d[1], d[2])
+      local A = F:a_schermo()
+      uguale(A.sezioni.Adesso, M.a_schermo(TT.batti_vuoto))
+      uguale(A.sezioni.Comandi, M.a_schermo(TT.comandi_batti))
+      vero(A.sezioni.Controllo, vim.inspect(A.righe))
+      vero(A.finisce.Adesso:sub(-3) ~= '…' and A.finisce.Comandi:sub(-3) ~= '…', vim.inspect(A.righe))
+      uguale(A.alto, #A.righe, 'la finestra non mostra tutto il riquadro')
+      for _, r in ipairs(A.righe) do uguale(vim.fn.strdisplaywidth(r), d[1], r) end
+      -- l'etichetta Controllo è staccata dal suo testo
+      local riga
+      for _, r in ipairs(A.righe) do if r:find('Controllo', 1, true) then riga = r end end
+      vero(riga:find('│ Controllo  Node', 1, true), riga)
+    end)
+  end
+end
+
+T['ridimensionando la finestra il riquadro si rimisura'] = function()
+  local TT = require('dattilo.guida_testi')
+  M.con({ cartella = M.cartella(), vivo = true }, function(F)
+    batti_con_controllo(F, 120, 40)
+    local prima = F:a_schermo()
+    F:lua('vim.o.columns, vim.o.lines = 80, 24')
+    local dopo = F:a_schermo()
+    vero(dopo.alto ~= prima.alto, 'stessa altezza a 120x40 e a 80x24: ' .. prima.alto)
+    uguale(dopo.alto, #dopo.righe, 'la finestra non mostra tutto il riquadro')
+    uguale(dopo.sezioni.Adesso, M.a_schermo(TT.batti_vuoto))
+    uguale(dopo.sezioni.Comandi, M.a_schermo(TT.comandi_batti))
+    -- un ridisegno qualunque non cambia più niente: la misura è già quella di 80x24
+    F:lua('require("dattilo.lezione").tip()')
+    uguale(F:a_schermo().alto, dopo.alto)
+  end)
 end
 
 T['con vivo si parte dal briefing della prima lezione, col riquadro'] = function()

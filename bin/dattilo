@@ -24,7 +24,9 @@ case "${1:-}" in
       --dove) cli vivo-dove; exit $? ;;
     esac
     [ -d "${2:-}" ] || { echo "uso: dattilo vivo <cartella> [opzioni di nvim]" >&2; exit 1; }
-    export XDG_DATA_HOME="$2/dati" DATTILO_VIVO="$2" LANGUAGE=it
+    # assoluta: Neovim può cambiare cartella, e i percorsi relativi non varrebbero più
+    cartella="$(CDPATH= cd -- "$2" && pwd)" || { echo "uso: dattilo vivo <cartella> [opzioni di nvim]" >&2; exit 1; }
+    export XDG_DATA_HOME="$cartella/dati" DATTILO_VIVO="$cartella" LANGUAGE=it
     shift 2
     exec nvim --clean -u "$DIR/init.lua" "$@" ;;
   *) exec nvim --clean -u "$DIR/init.lua" "$@" ;;

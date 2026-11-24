@@ -94,11 +94,13 @@ end
 
 -- Sezioni del suggerimento: { etichetta, testo, hl, priorita }. Se non ci stanno tutte, le meno
 -- importanti (priorita più bassa) si accorciano per prime; ognuna tiene almeno una riga.
-function M.sezioni(sezioni, interna, n)
+-- `etichetta` è la larghezza della colonna delle etichette (di solito ETICHETTA).
+function M.sezioni(sezioni, interna, n, etichetta)
+  local col = etichetta or ETICHETTA
   local voci = {}
   for i, sz in ipairs(sezioni) do
     if sz.testo and sz.testo ~= '' then
-      local largo = sz.etichetta and (interna - ETICHETTA) or interna
+      local largo = sz.etichetta and (interna - col) or interna
       voci[#voci + 1] = { i = i, sz = sz, corpo = M.a_capo(sz.testo, largo), largo = largo, righe = 0, prio = sz.priorita or 0 }
     end
   end
@@ -122,7 +124,7 @@ function M.sezioni(sezioni, interna, n)
         if k == v.righe and #v.corpo > v.righe then testo = con_puntini(testo, v.largo) end
         local segs = {}
         if v.sz.etichetta then
-          segs[1] = { k == 1 and string.format('%-' .. ETICHETTA .. 's', v.sz.etichetta) or string.rep(' ', ETICHETTA), v.sz.hl_etichetta or 'DattiloAccento' }
+          segs[1] = { k == 1 and string.format('%-' .. col .. 's', v.sz.etichetta) or string.rep(' ', col), v.sz.hl_etichetta or 'DattiloAccento' }
         end
         vim.list_extend(segs, M.segmenti(testo, v.sz.hl or 'DattiloTesto'))
         out[#out + 1] = segs
@@ -133,7 +135,7 @@ function M.sezioni(sezioni, interna, n)
 end
 
 -- Riquadro con titolo; `contenuto` è un testo (che va a capo) o una lista di sezioni.
-function M.riquadro(titolo, contenuto, larghezza, righe_interne, tipo)
+function M.riquadro(titolo, contenuto, larghezza, righe_interne, tipo, etichetta)
   local bordo = tipo == 'rosso' and 'DattiloBordoRosso' or tipo == 'verde' and 'DattiloBordoVerde' or 'DattiloBordo'
   local interna = larghezza - 4
   local righe, segni = {}, {}
@@ -142,7 +144,7 @@ function M.riquadro(titolo, contenuto, larghezza, righe_interne, tipo)
   righe[1] = '╭' .. testa .. string.rep('─', math.max(0, larghezza - 2 - dw(testa))) .. '╮'
   segni[#segni + 1] = { riga = 0, da = 0, a = #righe[1], hl = bordo }
   local linee
-  if type(contenuto) == 'table' then linee = M.sezioni(contenuto, interna, righe_interne)
+  if type(contenuto) == 'table' then linee = M.sezioni(contenuto, interna, righe_interne, etichetta)
   else linee = vim.tbl_map(function(l) return M.segmenti(l, 'DattiloTesto') end, M.a_capo(contenuto or '', interna)) end
   for i = 1, righe_interne do
     local segs = linee[i] or {}
@@ -199,7 +201,7 @@ end
 local function disegna_tip()
   if not tip.args then return end
   local win = M.finestra_tip()
-  local righe, segni = M.riquadro(tip.args[1], tip.args[2], vim.o.columns, tip.interne, tip.args[3])
+  local righe, segni = M.riquadro(tip.args[1], tip.args[2], vim.o.columns, tip.interne, tip.args[3], tip.args[4])
   vim.bo[tip.buf].modifiable = true
   vim.api.nvim_buf_set_lines(tip.buf, 0, -1, false, righe)
   vim.bo[tip.buf].modifiable = false
@@ -210,6 +212,11 @@ local function disegna_tip()
   if vim.api.nvim_win_get_height(win) ~= tip.interne + 2 then vim.api.nvim_win_set_height(win, tip.interne + 2) end
 end
 
+-- Vero se il riquadro è aperto e ha qualcosa da mostrare.
+function M.tip_aperto()
+  return tip.args ~= nil and tip.win ~= nil and vim.api.nvim_win_is_valid(tip.win)
+end
+
 -- Righe interne del riquadro: nil torna alle 3 di fuori lezione.
 function M.altezza_tip(n)
   n = n or 3
@@ -218,8 +225,9 @@ function M.altezza_tip(n)
   if tip.args then disegna_tip() end
 end
 
-function M.tip(titolo, testo, tipo)
-  local nuovi = { titolo, testo, tipo }
+-- `etichetta`: la larghezza della colonna delle etichette, se non è quella di sempre.
+function M.tip(titolo, testo, tipo, etichetta)
+  local nuovi = { titolo, testo, tipo, etichetta }
   if tip.args and vim.deep_equal(tip.args, nuovi) and tip.win and vim.api.nvim_win_is_valid(tip.win) then return end
   tip.args = nuovi
   disegna_tip()
