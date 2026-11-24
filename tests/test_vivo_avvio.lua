@@ -79,10 +79,11 @@ for _, d in ipairs({ { 80, 24 }, { 120, 40 } }) do
       vero(A.finisce.Adesso:sub(-3) ~= '…' and A.finisce.Comandi:sub(-3) ~= '…', vim.inspect(A.righe))
       uguale(A.alto, #A.righe, 'la finestra non mostra tutto il riquadro')
       for _, r in ipairs(A.righe) do uguale(vim.fn.strdisplaywidth(r), d[1], r) end
-      -- l'etichetta Controllo è staccata dal suo testo
+      -- l'etichetta Controllo è staccata dal suo testo (col testo di Batti vuoto, dopo il compito 4,
+      -- eco dice che il testo non è ancora uguale al grigio)
       local riga
       for _, r in ipairs(A.righe) do if r:find('Controllo', 1, true) then riga = r end end
-      vero(riga:find('│ Controllo  Node', 1, true), riga)
+      vero(riga:find('│ Controllo  Salvato', 1, true), riga)
     end)
   end
 end

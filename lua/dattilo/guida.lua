@@ -14,7 +14,10 @@ local INTERE = { Adesso = true, Comandi = true }
 
 local f = nil          -- il fornitore
 local ultimo = nil     -- l'ultimo riquadro disegnato
-local controllo = nil  -- l'ultimo esito, per la sezione «Controllo»
+-- L'ultimo esito, per la sezione «Controllo»: { testo, righe?, ko?, adesso? }. `righe` è il testo di
+-- Batti quando l'esito è arrivato: se il testo cambia l'esito non vale più. `ko` è il controllo che
+-- non passa: la frase sta in «Adesso» (adesso), il titolo è IL CONTROLLO NON PASSA.
+local controllo = nil
 local more_prima = nil
 -- [buf] = { righe, seq }: il testo all'ultima uscita dalla scrittura o all'ultimo cambio fatto da
 -- dattilo, e il punto della storia degli annullamenti (undotree) in quel momento
@@ -62,6 +65,36 @@ local function disegna(titolo, sezioni, tipo)
   ui.tip(titolo, per_ui, tipo, M.ETICHETTA)
 end
 
+-- Un errore dentro la guida non rompe la lezione e non arriva mai alla riga dei messaggi (G5): va
+-- in «Controllo» come «Errore di dattilo: …». Il riquadro si rifà con quello che c'era, senza
+-- passare dal codice che ha sbagliato.
+local function errore(e)
+  local msg = vim.trim((tostring(e):gsub('^[^\n]-:%d+: ', ''):gsub('%s+', ' ')))
+  local s = lezione().s
+  local righe = nil
+  if s and s.passo == 'batti' and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
+    righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
+  end
+  controllo = { testo = T.f('errore_dattilo', msg), righe = righe }
+  pcall(function()
+    local sez = {}
+    for _, sz in ipairs(ultimo and ultimo.sezioni or {}) do
+      if sz.etichetta ~= 'Controllo' then sez[#sez + 1] = sz end
+      if sz.etichetta == 'Adesso' then sez[#sez + 1] = { etichetta = 'Controllo', testo = controllo.testo, priorita = 8 } end
+    end
+    if #sez == 0 then sez[1] = { etichetta = 'Controllo', testo = controllo.testo, priorita = 8 } end
+    disegna(ultimo and ultimo.titolo or 'DATTILO', sez, ultimo and ultimo.tipo)
+  end)
+end
+
+local function proteggi(fn)
+  return function(...)
+    local r = vim.F.pack_len(pcall(fn, ...))
+    if not r[1] then errore(r[2]) return end
+    return unpack(r, 2, r.n)
+  end
+end
+
 -- fornitore = { comandi = fun(schermata), fine = fun(s), su_schermata = fun(s), destra = fun() }
 function M.accendi(fornitore)
   f = fornitore
@@ -72,12 +105,12 @@ function M.accendi(fornitore)
   giuste = {}
   local g = vim.api.nvim_create_augroup('dattilo_guida', { clear = true })
   -- la finestra ha cambiato misura: le righe di ogni sezione vanno ricontate
-  vim.api.nvim_create_autocmd('VimResized', { group = g, callback = function()
+  vim.api.nvim_create_autocmd('VimResized', { group = g, callback = proteggi(function()
     if ultimo and ui.tip_aperto() then disegna(ultimo.titolo, ultimo.sezioni, ultimo.tipo) end
-  end })
+  end) })
   -- Uscita dalla scrittura: il testo di adesso è quello «giusto», e un cambio in NORMAL si vede
   -- confrontandolo con questo. Si usa ModeChanged e non InsertLeave, che con Ctrl-c non scatta.
-  vim.api.nvim_create_autocmd('ModeChanged', { group = g, callback = function()
+  vim.api.nvim_create_autocmd('ModeChanged', { group = g, callback = proteggi(function()
     local s = lezione().s
     local da, a = vim.v.event.old_mode or '', vim.v.event.new_mode or ''
     if s and s.passo == 'batti' and s.buf and vim.api.nvim_get_current_buf() == s.buf
@@ -85,16 +118,16 @@ function M.accendi(fornitore)
       M.cambio_voluto(s.buf)
       M.tip(s)
     end
-  end })
+  end) })
   -- In NORMAL un movimento (2G, gg, h, un clic) cambia il punto, e con lui «Adesso». Una freccia
   -- premuta prima non è più «appena premuta».
-  vim.api.nvim_create_autocmd('CursorMoved', { group = g, callback = function(a)
+  vim.api.nvim_create_autocmd('CursorMoved', { group = g, callback = proteggi(function(a)
     local s = lezione().s
     if s and s.passo == 'batti' and a.buf == s.buf then
       s.frecce = false
       M.tip(s)
     end
-  end })
+  end) })
 end
 
 function M.spegni()
@@ -107,6 +140,9 @@ function M.spegni()
 end
 
 function M.attiva() return f ~= nil end
+
+-- Il fornitore acceso (per le prove).
+function M.fornitore() return f end
 
 function M.ultimo() return ultimo end
 
@@ -229,11 +265,15 @@ function M.tip(s)
     -- sotto il punto salvato vuol dire che è stato annullato (u) del testo scritto
     annullato = seq(s.buf) < g.seq
   end
+  -- l'esito di :w vale per il testo di quando è arrivato
+  local c = controllo
+  if c and c.righe and not vim.deep_equal(c.righe, righe) then controllo, c = nil, nil end
   local adesso = M.adesso_batti({ codice = codice, righe = righe, r = cur[1], c = cur[2], modo = modo,
     frecce = s.frecce, cambiato = cambiato, annullato = annullato })
   local titolo, sez = lezione().tip_batti(s, modo)
+  if c and c.ko then adesso = c.adesso end
   local out = { { etichetta = 'Adesso', testo = adesso, priorita = 9 } }
-  if controllo then out[#out + 1] = { etichetta = 'Controllo', testo = controllo, priorita = 8 } end
+  if c and not c.ko then out[#out + 1] = { etichetta = 'Controllo', testo = c.testo, priorita = 8 } end
   local r = math.min(cur[1], math.max(1, #codice))
   local riga_vuota = codice[r] and not codice[r]:match('%S') and not s.L.batti.suggerimenti[r]
   for _, x in ipairs(sez) do
@@ -243,10 +283,41 @@ function M.tip(s)
   end
   out[#out + 1] = { etichetta = 'Comandi', testo = comandi('batti'), priorita = 7 }
   local finito = confronto.confronta(righe, codice).finito
-  disegna(finito and T.f('titoli.finito', #codice) or T.f('titoli.batti', titolo), out)
+  local titolo_riquadro = finito and T.f('titoli.finito', #codice) or T.f('titoli.batti', titolo)
+  if c and c.ko then
+    disegna(T.titoli.ko, out, 'rosso')
+  else
+    disegna(titolo_riquadro, out)
+  end
 end
 
--- Chiamata in fondo a ogni schermata della lezione.
+-- Il riquadro delle schermate di testo (briefing, spiegazione, esegui): titolo, «Adesso»,
+-- «Controllo» se c'è un esito, «Comandi». Con un controllo che non passa, il titolo è rosso e la
+-- frase sta in «Adesso».
+local function disegna_testo(s)
+  local titolo, adesso, cmd
+  if s.passo == 'briefing' then
+    titolo, adesso, cmd = T.f('titoli.briefing', s.L.breve), T.briefing, comandi('testo')
+  elseif s.passo == 'spiegazione' then
+    titolo, adesso, cmd = T.f('titoli.spiegazione', s.L.breve), T.spiegazione, comandi('testo')
+  elseif s.passo == 'esegui' then
+    -- il testo non è più quello di Batti: il codice va controllato col :w di sempre
+    local righe = s.buf and vim.api.nvim_buf_is_valid(s.buf) and vim.api.nvim_buf_line_count(s.buf) or #s.L.batti.codice
+    titolo, adesso, cmd = T.f('titoli.finito', righe), T.batti_finito_n, comandi('batti')
+  else
+    return
+  end
+  local c = controllo
+  local tipo = nil
+  if c and c.ko then titolo, adesso, tipo = T.titoli.ko, c.adesso, 'rosso' end
+  local out = { { etichetta = 'Adesso', testo = adesso, priorita = 9 } }
+  if c and not c.ko then out[#out + 1] = { etichetta = 'Controllo', testo = c.testo, priorita = 8 } end
+  out[#out + 1] = { etichetta = 'Comandi', testo = cmd, priorita = 7 }
+  disegna(titolo, out, tipo)
+end
+
+-- Chiamata in fondo a ogni schermata della lezione. L'esito dell'ultimo :w passa dalla Batti alla
+-- spiegazione (così si legge «Node ha controllato il codice»); ogni altra schermata parte pulita.
 function M.schermata(s)
   if not f then return end
   if f.destra then
@@ -256,15 +327,12 @@ function M.schermata(s)
       vim.cmd('redrawtabline')
     end
   end
-  controllo = nil
-  if s.passo == 'briefing' then
-    disegna(T.f('titoli.briefing', s.L.breve), {
-      { etichetta = 'Adesso', testo = T.briefing, priorita = 9 },
-      { etichetta = 'Comandi', testo = comandi('testo'), priorita = 7 },
-    })
-  elseif s.passo == 'batti' then
+  if s.passo ~= 'spiegazione' then controllo = nil end
+  if s.passo == 'batti' then
     M.cambio_voluto(s.buf) -- il buffer appena aperto (vuoto) è il punto di partenza
     M.tip(s)
+  else
+    disegna_testo(s)
   end
   if f.su_schermata then f.su_schermata(s) end
 end
@@ -277,15 +345,65 @@ function M.mostra(titolo, adesso, cmd, altre)
   disegna(titolo, out)
 end
 
--- Gli esiti di :w e gli avvisi di dattilo vanno in «Controllo», non nella riga dei messaggi.
+-- La riga dell'errore di node: la prima con SyntaxError, o con un'altra «…Error:», o la prima non
+-- vuota dopo la riga «$ …».
+local function riga_errore(righe)
+  local primo_errore, prima = nil, nil
+  for _, l in ipairs(righe) do
+    l = vim.trim(l)
+    if l ~= '' and not l:find('^%$ ') then
+      if l:find('SyntaxError', 1, true) then return l end
+      if not primo_errore and l:find('Error:', 1, true) then primo_errore = l end
+      prima = prima or l
+    end
+  end
+  return primo_errore or prima or 'il controllo non è riuscito'
+end
+
+-- Gli esiti di :w e gli avvisi di dattilo vanno in «Controllo» (G5), mai nella riga dei messaggi.
+-- Non mostra i chunks, a parte quelli che non sono l'esito di un controllo: guarda lo stato e
+-- sceglie la frase. In Batti, col testo diverso dal grigio, il controllo non è partito.
 function M.eco(chunks)
+  local s = lezione().s
   local pezzi = {}
   for _, c in ipairs(chunks) do pezzi[#pezzi + 1] = c[1] end
-  controllo = vim.trim(table.concat(pezzi))
-  local s = lezione().s
-  if s then M.tip(s) end
+  local testo = table.concat(pezzi)
+  local righe, nuovo = nil, nil
+  if s and s.passo == 'batti' and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
+    righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
+    local codice = s.L.batti.codice
+    local esito = confronto.confronta(righe, codice)
+    if not esito.finito then
+      local mancano = #table.concat(codice, '\n') - #table.concat(righe, '\n')
+      if #esito.errori > 0 or mancano < 1 then nuovo = { testo = T.controllo_rosso }
+      else nuovo = { testo = T.f('controllo_mancano', mancano) } end
+    end
+  end
+  if not nuovo then
+    if testo:find('^%$ ') and not (s and s.passo == 'rompi') then
+      if testo:find('Sintassi corretta.', 1, true) then
+        nuovo = { testo = T.controllo_ok }
+      else
+        local righe_errore = {}
+        for i = 1, math.max(1, #pezzi - 1) do vim.list_extend(righe_errore, vim.split(pezzi[i], '\n')) end
+        local riga = (riga_errore(righe_errore):gsub('%.$', ''))
+        nuovo = { testo = '', ko = true, adesso = T.f('controllo_ko', riga) }
+      end
+    else
+      nuovo = { testo = vim.trim((testo:gsub('%s+', ' '))) }
+    end
+  end
+  nuovo.righe = righe
+  controllo = nuovo
+  if not s then return end
+  if s.passo == 'batti' then M.tip(s) else disegna_testo(s) end
 end
 
 function M.fine(s) return f ~= nil and f.fine ~= nil and f.fine(s) end
+
+-- Tutto quello che il resto di dattilo chiama gira protetto.
+for _, nome in ipairs({ 'tip', 'schermata', 'mostra', 'eco', 'fine', 'cambio_voluto' }) do
+  M[nome] = proteggi(M[nome])
+end
 
 return M

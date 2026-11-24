@@ -98,7 +98,8 @@ local function briefing(s)
   if #L.concetti > 0 then riga({ { '   Concetti      ', 'DattiloTesto' }, { table.concat(L.concetti, ' · '), 'DattiloForte' } }) end
   if L.tempo then riga({ { '   Tempo         ', 'DattiloTesto' }, { L.tempo, 'DattiloForte' } }) end
   riga({})
-  riga(schermo.con_tasti('   ', '‹Invio› inizia   ' .. (L.video and ('‹v› apre il video al minuto ' .. L.video.da .. '   ') or '') .. '‹q› torna alla home', 'DattiloMuto'))
+  -- con la guida le istruzioni sono nel riquadro: questa riga manda alla home, che lì non c'è
+  if not M.guida then riga(schermo.con_tasti('   ', '‹Invio› inizia   ' .. (L.video and ('‹v› apre il video al minuto ' .. L.video.da .. '   ') or '') .. '‹q› torna alla home', 'DattiloMuto')) end
   local buf = schermo.buffer('briefing')
   schermo.scrivi(buf, r)
   schermo.mostra(buf, 'testo')
@@ -268,6 +269,8 @@ function M.dopo_modifica(s, i)
   local L = s.L
   if i < #L.modifiche then M.modifica(s, i + 1)
   elseif L.rompi then M.rompi(s)
+  -- con la guida il codice è già stato controllato: un secondo :w non servirebbe a niente
+  elseif M.guida and i == #L.modifiche and vim.deep_equal(finale(L), L.batti.codice) then M.spiegazione(s)
   else M.esegui(s) end
 end
 
@@ -368,6 +371,7 @@ function M.esegui(s)
   barre(s)
   vim.api.nvim_set_current_win(schermo.finestra())
   tip(s)
+  if M.guida then M.guida.schermata(s) end
 end
 
 function M.tip() if M.s then tip(M.s) end end
@@ -449,8 +453,10 @@ function M.spiegazione(s)
   if sp.trappola or sp.prova then sotto[#sotto + 1] = { { '' } } end
   if sp.trappola then sotto[#sotto + 1] = { { 'Trappola  ', 'DattiloRosso' }, { sp.trappola, 'DattiloTesto' } } end
   if sp.prova then sotto[#sotto + 1] = { { 'Prova     ', 'DattiloVerde' }, { sp.prova, 'DattiloTesto' } } end
-  sotto[#sotto + 1] = { { '' } }
-  sotto[#sotto + 1] = ui.segmenti('‹Invio› continua   ' .. ((L.video and #sp.momenti > 0) and '‹v› apre il video al primo momento   ' or '') .. '‹q› torna alla home', 'DattiloMuto')
+  if not M.guida then -- con la guida le istruzioni sono nel riquadro
+    sotto[#sotto + 1] = { { '' } }
+    sotto[#sotto + 1] = ui.segmenti('‹Invio› continua   ' .. ((L.video and #sp.momenti > 0) and '‹v› apre il video al primo momento   ' or '') .. '‹q› torna alla home', 'DattiloMuto')
+  end
   vim.api.nvim_buf_set_extmark(buf, ns, #codice - 1, 0, { virt_lines = sotto })
   schermo.mostra(buf, 'testo')
   vim.wo.number = true
@@ -459,6 +465,7 @@ function M.spiegazione(s)
   mappa(buf, { '<CR>', 'l' }, function() if M.s == s then M.fine(s) end end)
   mappa(buf, 'v', function() apri_video(s, sp.momenti[1] and sp.momenti[1][1]) end)
   mappa(buf, 'q', function() require('dattilo.home').apri() end)
+  if M.guida then M.guida.schermata(s) end
 end
 
 ---------------------------------------------------------------- fine
