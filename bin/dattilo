@@ -22,6 +22,7 @@ case "${1:-}" in
   vivo)
     case "${2:-}" in
       --dove) cli vivo-dove; exit $? ;;
+      --prova) shift 2; cli vivo-prova "$@"; exit $? ;;
     esac
     [ -d "${2:-}" ] || { echo "uso: dattilo vivo <cartella> [opzioni di nvim]" >&2; exit 1; }
     # assoluta: Neovim può cambiare cartella, e i percorsi relativi non varrebbero più

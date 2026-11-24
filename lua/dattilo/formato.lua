@@ -198,6 +198,29 @@ local function corto(s, n)
   return vim.fn.strcharpart(s, 0, n - 1) .. '…'
 end
 
+-- Le righe di `### Tasti`: `- <tasti> | <cosa fanno>`, divise al primo ' | '.
+-- I tasti restano com'è scritto (anche uno spazio davanti: fa parte dei tasti), la spiegazione si ripulisce.
+-- Ritorna la lista { { tasti, cosa } }, o nil dopo aver segnalato le righe non valide.
+local function leggi_tasti(sotto, e)
+  local out, valida = {}, true
+  for _, r in ipairs(sotto.testo) do
+    if r.t:match('%S') then
+      local resto = r.t:match('^%- (.*)$')
+      local da, a
+      if resto then da, a = resto:find(' | ', 1, true) end
+      local tasti = da and resto:sub(1, da - 1)
+      local cosa = da and trim(resto:sub(a + 1))
+      if tasti and tasti ~= '' and cosa ~= '' then
+        out[#out + 1] = { tasti = tasti, cosa = cosa }
+      else
+        e(r.riga, 'riga non valida nei Tasti: scrivi - tasti | cosa fanno')
+        valida = false
+      end
+    end
+  end
+  return valida and out or nil
+end
+
 function M.lezione(testo, nome_file, indice, opzioni)
   local err = {}
   local function e(riga, msg) err[#err + 1] = { file = nome_file, riga = riga, msg = msg } end
@@ -300,11 +323,29 @@ function M.lezione(testo, nome_file, indice, opzioni)
         local motivo = M.soluzione_non_ammessa(m.soluzione)
         if motivo then e(kv.soluzione.riga, motivo) end
       end
-      if not s.blocchi[1] then e(s.riga, 'la Modifica non ha il blocco con il testo obiettivo') end
-      m.obiettivo = s.blocchi[1] and s.blocchi[1].righe or {}
-      m.blocco = s.blocchi[1] and { riga = s.blocchi[1].riga, n = #s.blocchi[1].righe } -- per dattilo riempi
+      -- il blocco con `partenza` nell'info è il codice da cui si parte; l'obiettivo è il primo blocco senza
+      local partenza_propria, obiettivo
+      for _, b in ipairs(s.blocchi) do
+        if b.info:match('%f[%w]partenza$') then
+          if partenza_propria then e(b.riga, 'la Modifica ha due blocchi partenza') else partenza_propria = b end
+        elseif not obiettivo then obiettivo = b end
+      end
+      if not obiettivo then e(s.riga, 'la Modifica non ha il blocco con il testo obiettivo') end
+      m.obiettivo = obiettivo and obiettivo.righe or {}
+      m.blocco = obiettivo and { riga = obiettivo.riga, n = #obiettivo.righe } -- per dattilo riempi
+      m.partenza_propria = partenza_propria and partenza_propria.righe
       m.par_riga = kv.par and kv.par.riga
       m.mostra = kv.mostra and vim.tbl_map(trim, vim.split(kv.mostra.v, ' · ', { plain = true })) or { m.soluzione }
+      local tasti = s.sotto['Tasti']
+      if tasti then
+        m.tasti = leggi_tasti(tasti, e)
+        if m.tasti then
+          m.mostra = vim.tbl_map(function(t) return t.tasti end, m.tasti)
+          if m.soluzione and table.concat(m.mostra) ~= m.soluzione then
+            e(tasti.riga, 'i Tasti messi in fila non sono la soluzione')
+          end
+        end
+      end
       if kv.pos then
         local r, c = kv.pos.v:match('^(%d+):(%d+)$')
         if r then m.pos, m.pos_riga = { tonumber(r) - 1, tonumber(c) - 1 }, kv.pos.riga else e(kv.pos.riga, 'pos deve essere riga:colonna, es. 3:5') end
@@ -344,8 +385,8 @@ function M.lezione(testo, nome_file, indice, opzioni)
   -- ogni modifica parte dall'obiettivo della precedente
   local partenza = L.batti and L.batti.codice or {}
   for i, m in ipairs(L.modifiche) do
-    m.partenza = partenza
-    local riga = partenza[m.pos[1] + 1]
+    m.partenza = m.partenza_propria or partenza -- con un blocco partenza proprio si parte da lì
+    local riga = m.partenza[m.pos[1] + 1]
     -- dattilo riempi legge la lezione mentre i blocchi obiettivo sono ancora da scrivere
     if (not riga or m.pos[2] > math.max(0, #riga - 1)) and not (opzioni and opzioni.riempi) then e(m.pos_riga or 1, 'pos fuori dal testo di partenza') end
     m.titolo = m.titolo or ('Modifica ' .. i .. '/' .. #L.modifiche)
