@@ -13,10 +13,13 @@ local ALTO = 10 -- righe interne del riquadro, al massimo, prima di accorciare q
 local INTERE = { Adesso = true, Comandi = true }
 
 local f = nil          -- il fornitore
-local ultimo = nil     -- l'ultimo riquadro disegnato
--- L'ultimo esito, per la sezione «Controllo»: { testo, righe?, ko?, adesso? }. `righe` è il testo di
--- Batti quando l'esito è arrivato: se il testo cambia l'esito non vale più. `ko` è il controllo che
--- non passa: la frase sta in «Adesso» (adesso), il titolo è IL CONTROLLO NON PASSA.
+local ultimo = nil     -- l'ultimo riquadro disegnato, com'è a schermo (anche nel posto sbagliato)
+local base = nil       -- l'ultimo riquadro della schermata, prima del posto sbagliato
+local mostrata = nil   -- l'ultima schermata di vivo (mostra): { titolo, adesso, cmd, altre }
+-- L'ultimo esito, per la sezione «Controllo»: { testo, righe?, ko?, riga?, errore? }. `righe` è il
+-- testo di Batti (o di esegui) quando l'esito è arrivato: se il testo cambia l'esito non vale più.
+-- `ko` è il controllo che non passa in Batti: la frase sta in «Adesso», con la riga d'errore di node
+-- (`riga`), e il titolo è IL CONTROLLO NON PASSA. `errore` è lo stesso fuori da Batti.
 local controllo = nil
 local more_prima = nil
 -- [buf] = { righe, seq }: il testo all'ultima uscita dalla scrittura o all'ultimo cambio fatto da
@@ -24,6 +27,125 @@ local more_prima = nil
 local giuste = {}
 
 local function lezione() return require('dattilo.lezione') end
+
+---------------------------------------------------------------- I posti sbagliati (3.4)
+
+local SINONIMI_Q = { q = true, ['q!'] = true, wq = true, x = true } -- tutti DattiloEsci (init.lua)
+local COMANDO_DI = { salta = 'DattiloSalta', ultima = 'DattiloUltima', elenco = 'DattiloElenco', ['e!'] = 'DattiloRicomincia' }
+local SELEZIONE = { v = true, V = true, ['\22'] = true, s = true, S = true, ['\19'] = true }
+
+-- I comandi che valgono qui: quelli scritti in «Comandi» (‹:nome›) che esistono davvero adesso
+-- (:salta, :ultima ed :elenco arrivano col compito 8). :q vale sempre.
+local function comandi_validi(testo_comandi)
+  local v = { q = true }
+  for nome in (testo_comandi or ''):gmatch('‹:([^›]+)›') do
+    local cmd = COMANDO_DI[nome]
+    if nome == 'w' or nome == 'q' or (cmd and vim.fn.exists(':' .. cmd) == 2) then v[nome] = true end
+  end
+  return v
+end
+
+-- Cosa fa il comando noto `nome`, dove si è adesso (3.4, riga 3). La finestra in più (q_finestra)
+-- arriva col compito 6.
+local function spiega(nome)
+  if SINONIMI_Q[nome] then
+    return require('dattilo.stato').schermo == 'home' and T.spiega_comando.q_esci or T.spiega_comando.q
+  end
+  return T.spiega_comando[nome]
+end
+
+local function posto_di(nome, ...)
+  local titolo, testo = T.posto(nome, ...)
+  return { titolo = titolo, testo = testo }
+end
+
+-- La riga dei comandi (3.4, righe 2-4): vuota, un comando che vale qui, a metà di uno, o un altro.
+local function nella_riga_dei_comandi(riga, testo_comandi)
+  local validi = comandi_validi(testo_comandi)
+  riga = vim.trim(riga)
+  if riga == '' then return posto_di(validi.w and 'cmd_vuota' or 'cmd_vuota_testo') end
+  if riga == 'w' and validi.w then return { titolo = T.posti.cmd_vuota.titolo, testo = T.cmd_w } end
+  if SINONIMI_Q[riga] or (validi[riga] and riga ~= 'w') then return posto_di('cmd_noto', riga, spiega(riga)) end
+  -- a metà di un comando che vale qui: le lettere che mancano (mai ‹Esc› per primo, che lo cancellerebbe)
+  local finire = {}
+  for nome in pairs(validi) do
+    if #nome > #riga and nome:sub(1, #riga) == riga then finire[#finire + 1] = nome end
+  end
+  table.sort(finire)
+  if #finire > 0 then
+    local parti = {}
+    for _, nome in ipairs(finire) do
+      local tasti = {}
+      for ch in nome:sub(#riga + 1):gmatch('.') do tasti[#tasti + 1] = '‹' .. ch .. '›' end
+      parti[#parti + 1] = T.f('cmd_finisci', table.concat(tasti, ' '), nome, spiega(nome))
+    end
+    return posto_di('cmd_parziale', riga, table.concat(parti, ' '))
+  end
+  return posto_di('cmd_ignoto', riga)
+end
+
+-- La finestra in più (3.4, riga 12): il cursore è in una finestra che non è quella della lezione
+-- (schermo.principale), né il riquadro, né l'OBIETTIVO, né una galleggiante. Il cursore nella
+-- finestra della lezione con un'altra aperta (riga 12b) arriva col compito 6.
+local function finestra_in_piu()
+  local win = vim.api.nvim_get_current_win()
+  local principale = require('dattilo.schermo').principale
+  if not principale or win == principale or not vim.api.nvim_win_is_valid(principale) then return nil end
+  if vim.api.nvim_win_get_config(win).relative ~= '' then return nil end
+  if ui.tip_aperto() and win == ui.finestra_tip() then return nil end
+  local s = lezione().s
+  if s and s.e and s.e.fin == win then return nil end
+  return posto_di(vim.bo.buftype == 'help' and 'aiuto' or 'divisa')
+end
+
+-- Il posto sbagliato in cui si è adesso, o nil. L'ordine conta: la finestra dei comandi, Ex (dove
+-- anche getcmdtype() dà ':'), la riga dei comandi, la registrazione (in NORMAL e mentre si
+-- scrive; negli altri modi prima si esce da quelli), le frecce, il terminale, la finestra in più
+-- (in NORMAL: in INSERT ‹Ctrl-w› cancellerebbe una parola), poi il modo. `testo_comandi` è la
+-- sezione «Comandi» della schermata, che dice quali comandi valgono.
+local function posto_per(modo, testo_comandi)
+  modo = modo or vim.api.nvim_get_mode().mode
+  if vim.fn.getcmdwintype() ~= '' then return posto_di('cmdwin') end
+  if modo == 'cv' or modo == 'ce' then return posto_di('ex') end
+  local tipo = vim.fn.getcmdtype()
+  if tipo == ':' then return nella_riga_dei_comandi(vim.fn.getcmdline(), testo_comandi) end
+  if tipo == '/' or tipo == '?' then return posto_di('ricerca') end
+  if tipo ~= '' then return posto_di('sconosciuto', modo) end
+  local m1 = modo:sub(1, 1)
+  local reg = vim.fn.reg_recording()
+  if reg ~= '' then
+    if modo == 'n' then return posto_di('registra_n', reg) end
+    if m1 == 'i' or m1 == 'R' then return posto_di('registra_i', reg) end
+  end
+  local s = lezione().s
+  if s and s.passo == 'batti' and s.frecce then
+    if m1 == 'i' then return posto_di('frecce') end
+    if modo == 'n' then return posto_di('frecce_n') end
+  end
+  if modo == 'nt' or modo == 'ntT' then return posto_di('terminale') end
+  if modo == 'n' then
+    local p = finestra_in_piu()
+    if p then return p end
+  end
+  -- NORMAL e INSERT (anche col completamento, ic e ix) non sono posti sbagliati; «Premi INVIO»
+  -- (r…) e un comando esterno (!) non si possono ridisegnare
+  if modo == 'n' or m1 == 'i' or m1 == 'r' or modo == '!' or m1 == 'c' then return nil end
+  if SELEZIONE[m1] then return posto_di('visuale') end
+  if m1 == 'R' then return posto_di('replace') end
+  if modo:sub(1, 2) == 'no' then return posto_di('operatore', vim.v.operator) end
+  if modo:sub(1, 2) == 'ni' then return posto_di('ctrl_o') end
+  return posto_di('sconosciuto', modo)
+end
+
+-- Il posto sbagliato in cui si è adesso (3.4): nil o { titolo, testo }. `modo` (facoltativo, per
+-- le prove) prende il posto di nvim_get_mode().
+function M.posto(modo)
+  local cmd = nil
+  for _, sz in ipairs(base and base.sezioni or {}) do
+    if sz.etichetta == 'Comandi' then cmd = sz.testo end
+  end
+  return posto_per(modo, cmd)
+end
 
 -- Una parola più larga della riga (un nome lunghissimo nell'errore di node, un percorso) uscirebbe
 -- dal bordo: si spezza in pezzi che ci stanno. I tasti ‹…› sono corti e non si toccano.
@@ -45,7 +167,7 @@ end
 -- Disegna il riquadro e lo ricorda. Conta le righe vere di ogni sezione e alza il riquadro fino
 -- a ALTO righe; se non basta, toglie righe alle sezioni meno importanti (Blocco, Fin qui, Riga,
 -- poi Controllo), mai ad Adesso e Comandi.
-local function disegna(titolo, originali, tipo)
+local function disegna_riquadro(titolo, originali, tipo)
   local largo = vim.o.columns - 4 - M.ETICHETTA -- come ui.sezioni: i bordi e la colonna delle etichette
   local sezioni = {}
   for i, sz in ipairs(originali) do
@@ -86,6 +208,25 @@ local function disegna(titolo, originali, tipo)
   ui.tip(titolo, per_ui, tipo, M.ETICHETTA)
 end
 
+-- L'ultimo errore della guida che non si è potuto nemmeno disegnare nel riquadro (per le prove).
+local errore_disegno = nil
+function M.errore_disegno() return errore_disegno end
+
+-- Disegna la schermata. In un posto sbagliato (3.4) il titolo e «Adesso» sono quelli del posto e
+-- il bordo è rosso; le altre sezioni restano. La schermata senza il posto resta in `base`: quando
+-- si torna, il riquadro torna com'era.
+local function disegna(titolo, sezioni, tipo)
+  base = { titolo = titolo, sezioni = sezioni, tipo = tipo }
+  local ok, p = pcall(M.posto)
+  if not ok then errore_disegno, p = tostring(p), nil end
+  if not p then return disegna_riquadro(titolo, sezioni, tipo) end
+  local sez = {}
+  for i, sz in ipairs(sezioni) do
+    sez[i] = sz.etichetta == 'Adesso' and vim.tbl_extend('force', sz, { testo = p.testo }) or sz
+  end
+  disegna_riquadro(p.titolo, sez, 'rosso')
+end
+
 -- Le sezioni `sezioni` con «Controllo» che dice `testo` (subito dopo «Adesso»), o senza, se testo è nil.
 local function con_controllo(sezioni, testo)
   local sez = {}
@@ -97,16 +238,13 @@ local function con_controllo(sezioni, testo)
   return sez
 end
 
--- Il riquadro di prima, con «Controllo» di adesso: per i passi che la guida non disegna ancora da
--- sé (modifica e rompi arrivano col tempo B), così un esito non sparisce mai.
+-- Il riquadro della schermata di prima, con «Controllo» di adesso e il posto sbagliato di adesso:
+-- per i passi che la guida non disegna ancora da sé (modifica e rompi arrivano col tempo B) e
+-- quando il buffer della lezione non si vede, così un esito non sparisce mai e il riquadro non resta vecchio.
 local function disegna_di_nuovo()
-  if not ultimo then return end
-  disegna(ultimo.titolo, con_controllo(ultimo.sezioni, controllo and controllo.testo), ultimo.tipo)
+  if not base then return end
+  disegna(base.titolo, con_controllo(base.sezioni, controllo and controllo.testo), base.tipo)
 end
-
--- L'ultimo errore della guida che non si è potuto nemmeno disegnare nel riquadro (per le prove).
-local errore_disegno = nil
-function M.errore_disegno() return errore_disegno end
 
 -- Un errore dentro la guida non rompe la lezione e non arriva mai alla riga dei messaggi (G5): va
 -- in «Controllo» come «Errore di dattilo: …». Il riquadro si rifà con quello che c'era, senza
@@ -120,8 +258,8 @@ local function errore(e)
   end
   controllo = { testo = T.f('errore_dattilo', msg), righe = righe }
   local ok, e2 = pcall(function()
-    local sez = con_controllo(ultimo and ultimo.sezioni, controllo.testo)
-    disegna(ultimo and ultimo.titolo or 'DATTILO', sez, ultimo and ultimo.tipo)
+    local sez = con_controllo(base and base.sezioni, controllo.testo)
+    disegna_riquadro(base and base.titolo or 'DATTILO', sez, base and base.tipo)
   end)
   if not ok then errore_disegno = tostring(e) .. ' | nel disegno: ' .. tostring(e2) end
 end
@@ -138,18 +276,60 @@ end
 -- dei messaggi. La usa lezione.lua per il salvataggio (BufWritePost) quando la guida è accesa.
 function M.protetta(fn, ...) return proteggi(fn)(...) end
 
+local ridisegna -- più sotto: rifà il riquadro della schermata di adesso
+
+-- Ricalcola il riquadro appena Neovim torna libero, e lo ridisegna subito: nella riga dei comandi,
+-- con un operatore in attesa o in Ex Neovim non ridisegna lo schermo da solo. Gli eventi che
+-- arrivano insieme fanno un giro solo. Davanti a «Premi INVIO» (r…) il riquadro si aggiorna ma lo
+-- schermo no: ridisegnare cancellerebbe quello che Neovim sta mostrando, e dopo il tasto lo
+-- ridisegna lui.
+local in_coda = false
+local function ricalcola()
+  if in_coda then return end
+  in_coda = true
+  vim.schedule(function()
+    in_coda = false
+    if not f then return end
+    proteggi(ridisegna)()
+    local m = vim.api.nvim_get_mode().mode
+    if not m:match('^r') and m ~= '!' then pcall(vim.cmd.redraw) end
+  end)
+end
+
+-- ‹Ctrl-z› (G9): in Neovim mette in pausa il programma, e nel pannello di «Rifallo tu» non c'è una
+-- shell che lo riprenda. Qui scrive in «Controllo» perché è spento, e non cambia il titolo.
+local function ctrl_z()
+  local s = lezione().s
+  local righe = nil
+  if s and (s.passo == 'batti' or s.passo == 'esegui') and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
+    righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
+  end
+  controllo = { testo = T.ctrl_z, righe = righe }
+  ridisegna()
+end
+
 -- fornitore = { comandi = fun(schermata), fine = fun(s), su_schermata = fun(s), destra = fun() }
 function M.accendi(fornitore)
   f = fornitore
   more_prima = vim.o.more
   vim.o.more = false
-  ultimo, controllo = nil, nil
+  ultimo, base, mostrata, controllo = nil, nil, nil, nil
   lezione().guida = M
   giuste = {}
+  vim.keymap.set({ 'n', 'i', 'v' }, '<C-z>', proteggi(ctrl_z), { desc = 'dattilo: Ctrl-z non mette in pausa (G9)' })
+  -- anche con un operatore in attesa (d, poi Ctrl-z) Neovim si metterebbe in pausa (visto in tmux,
+  -- da una shell): qui ‹Esc› annulla l'operatore, e poi la frase
+  vim.keymap.set('o', '<C-z>', function() vim.schedule(proteggi(ctrl_z)) return '<Esc>' end,
+    { expr = true, desc = 'dattilo: Ctrl-z non mette in pausa (G9)' })
   local g = vim.api.nvim_create_augroup('dattilo_guida', { clear = true })
+  -- i posti sbagliati (3.4): ogni evento che può portare dentro o fuori da uno ricalcola il riquadro
+  -- (WinNew, WinEnter e WinClosed per la finestra in più, riga 12: aprirla non cambia il modo)
+  vim.api.nvim_create_autocmd({ 'ModeChanged', 'RecordingEnter', 'RecordingLeave', 'CmdlineEnter', 'CmdlineChanged',
+    'CmdlineLeave', 'CmdwinEnter', 'CmdwinLeave', 'TextChanged', 'WinNew', 'WinEnter', 'WinClosed' },
+    { group = g, callback = function() ricalcola() end })
   -- la finestra ha cambiato misura: le righe di ogni sezione vanno ricontate
   vim.api.nvim_create_autocmd('VimResized', { group = g, callback = proteggi(function()
-    if ultimo and ui.tip_aperto() then disegna(ultimo.titolo, ultimo.sezioni, ultimo.tipo) end
+    if base and ui.tip_aperto() then disegna(base.titolo, base.sezioni, base.tipo) end
   end) })
   -- Uscita dalla scrittura: il testo di adesso è quello «giusto», e un cambio in NORMAL si vede
   -- confrontandolo con questo. Si usa ModeChanged e non InsertLeave, che con Ctrl-c non scatta.
@@ -176,8 +356,9 @@ end
 function M.spegni()
   if not f then return end
   f = nil
-  ultimo, controllo, giuste = nil, nil, {}
+  ultimo, base, mostrata, controllo, giuste = nil, nil, nil, nil, {}
   pcall(vim.api.nvim_del_augroup_by_name, 'dattilo_guida')
+  for _, m in ipairs({ 'n', 'i', 'v', 'o' }) do pcall(vim.keymap.del, m, '<C-z>') end
   if more_prima ~= nil then vim.o.more = more_prima end
   lezione().guida = nil
 end
@@ -306,8 +487,8 @@ function M.adesso_batti(x)
     return T.batti_scrivi
   end
 
-  -- NORMAL. Per ora ci arrivano anche gli altri modi (VISUAL, REPLACE, la riga dei comandi…),
-  -- che sono posti sbagliati (3.4): le loro frasi arrivano col compito 5.
+  -- NORMAL. Gli altri modi (VISUAL, REPLACE, la riga dei comandi…) sono posti sbagliati (3.4): nel
+  -- riquadro il titolo e «Adesso» li dà posto(), che vale prima di questa frase.
   if x.annullato then return T.batti_annullato end
   if x.cambiato then return T.batti_cambiato end
   if #righe == 1 and righe[1] == '' then return T.batti_vuoto end
@@ -331,12 +512,13 @@ end
 local disegna_testo
 
 -- Il riquadro di Batti: titolo, «Adesso», «Controllo», le sezioni di tip_batti e «Comandi».
--- Nel passo esegui, che ha lo stesso buffer, il riquadro del passo (cambia col modo).
+-- Nel passo esegui, che ha lo stesso buffer, il riquadro del passo (cambia col modo). Rende vero
+-- se ha disegnato: non lo fa se il buffer della lezione non si vede.
 function M.tip(s)
-  if s.passo == 'esegui' then disegna_testo(s) return end
-  if s.passo ~= 'batti' or not s.st or not vim.api.nvim_buf_is_valid(s.buf) then return end
+  if s.passo == 'esegui' then return disegna_testo(s) end
+  if s.passo ~= 'batti' or not s.st or not vim.api.nvim_buf_is_valid(s.buf) then return false end
   local win = vim.api.nvim_win_get_buf(0) == s.buf and vim.api.nvim_get_current_win() or vim.fn.bufwinid(s.buf)
-  if win == -1 then return end
+  if win == -1 then return false end
   local modo = vim.api.nvim_get_mode().mode:sub(1, 1)
   local codice = s.L.batti.codice
   local righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
@@ -353,7 +535,12 @@ function M.tip(s)
   if c and c.righe and not vim.deep_equal(c.righe, righe) then controllo, c = nil, nil end
   local adesso = M.adesso_batti({ codice = codice, righe = righe, r = cur[1], c = cur[2], modo = modo,
     frecce = s.frecce, cambiato = cambiato, annullato = annullato })
-  local titolo, sez = lezione().tip_batti(s, modo)
+  -- tip_batti guarda il cursore della finestra corrente: nella finestra dei comandi (q:) è
+  -- un'altra, e si chiede alla finestra della lezione
+  -- (nvim_win_call rende un valore solo: i due si prendono dentro)
+  local titolo, sez
+  if win == vim.api.nvim_get_current_win() then titolo, sez = lezione().tip_batti(s, modo)
+  else vim.api.nvim_win_call(win, function() titolo, sez = lezione().tip_batti(s, modo) end) end
   -- il controllo che non passa: «Adesso» vale per il modo in cui si è
   if c and c.ko then adesso = T.f(modo == 'i' and 'controllo_ko_i' or 'controllo_ko', c.riga) end
   local out = { { etichetta = 'Adesso', testo = adesso, priorita = 9 } }
@@ -373,6 +560,7 @@ function M.tip(s)
   else
     disegna(titolo_riquadro, out)
   end
+  return true
 end
 
 -- Il testo finale della lezione (come lezione.lua): l'obiettivo dell'ultima modifica, o Batti.
@@ -429,6 +617,7 @@ function M.schermata(s)
     end
   end
   if s.passo ~= 'spiegazione' then controllo = nil end
+  mostrata = nil
   if s.passo == 'batti' then
     M.cambio_voluto(s.buf) -- il buffer appena aperto (vuoto) è il punto di partenza
     M.tip(s)
@@ -438,12 +627,39 @@ function M.schermata(s)
   if f.su_schermata then f.su_schermata(s) end
 end
 
--- Il riquadro delle schermate di vivo (elenco, attesa, riepilogo).
+-- Il riquadro della schermata di vivo di adesso, con «Controllo» se c'è (Ctrl-z, un avviso).
+local function disegna_mostrata()
+  local m = mostrata
+  local out = { { etichetta = 'Adesso', testo = m.adesso, priorita = 9 } }
+  if controllo and controllo.testo ~= '' then out[#out + 1] = { etichetta = 'Controllo', testo = controllo.testo, priorita = 8 } end
+  for _, x in ipairs(m.altre or {}) do out[#out + 1] = x end
+  out[#out + 1] = { etichetta = 'Comandi', testo = m.cmd, priorita = 7 }
+  disegna(m.titolo, out)
+end
+
+-- Il riquadro delle schermate di vivo (elenco, attesa, riepilogo). Una schermata nuova parte senza
+-- l'esito di prima: un avviso per questa schermata si passa a eco dopo.
 function M.mostra(titolo, adesso, cmd, altre)
-  local out = { { etichetta = 'Adesso', testo = adesso, priorita = 9 } }
-  for _, x in ipairs(altre or {}) do out[#out + 1] = x end
-  out[#out + 1] = { etichetta = 'Comandi', testo = cmd, priorita = 7 }
-  disegna(titolo, out)
+  controllo = nil
+  mostrata = { titolo = titolo, adesso = adesso, cmd = cmd, altre = altre }
+  disegna_mostrata()
+end
+
+-- Rifà il riquadro della schermata di adesso: la lezione (Batti, esegui, le schermate di testo),
+-- una schermata di vivo, o il riquadro di prima quando la guida non ne ha uno suo (modifica,
+-- rompi, il buffer della lezione che non si vede). Il posto sbagliato lo mette disegna.
+function ridisegna()
+  local s = lezione().s
+  if s then
+    if s.passo == 'batti' or s.passo == 'esegui' then
+      if M.tip(s) then return end
+    elseif disegna_testo(s) then
+      return
+    end
+    return disegna_di_nuovo()
+  end
+  if mostrata then return disegna_mostrata() end
+  disegna_di_nuovo()
 end
 
 -- La riga dell'errore di node: la prima con SyntaxError, o con un'altra «…Error:», o la prima non
@@ -501,9 +717,7 @@ function M.eco(chunks)
   end
   nuovo.righe = righe
   controllo = nuovo
-  if not s then return end
-  if s.passo == 'batti' then M.tip(s)
-  elseif not disegna_testo(s) then disegna_di_nuovo() end
+  ridisegna()
 end
 
 function M.fine(s) return f ~= nil and f.fine ~= nil and f.fine(s) end

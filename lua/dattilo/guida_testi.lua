@@ -95,7 +95,12 @@ M.mod_fatta = 'Fatto: è uguale alla modifica di Claude. Tasti premuti: %d; la s
 M.posti = {
   visuale = { titolo = 'SEI IN VISUAL: SELEZIONE', testo = 'Hai selezionato del testo (con il tasto v o col mouse). ‹Esc›: togli la selezione e torni in NORMAL.' },
   cmd_vuota = { titolo = 'RIGA DEI COMANDI', testo = '‹Esc›: annulli e torni dov\'eri. Se volevi salvare: ‹w› ‹Invio›: salvi e node controlla.' },
-  cmd_noto = { titolo = 'RIGA DEI COMANDI', testo = '‹Invio›: esegui :%s, cioè %s.' },
+  -- Non è nella 3.4: la riga dei comandi vuota dove :w non salva niente (le schermate di testo, l'elenco).
+  cmd_vuota_testo = { titolo = 'RIGA DEI COMANDI', testo = '‹Esc›: annulli e torni dov\'eri. I comandi che valgono qui sono in «Comandi», qui sotto.' },
+  -- Cambiato costruendo: in fondo, come uscirne se il comando era scritto per sbaglio.
+  cmd_noto = { titolo = 'RIGA DEI COMANDI', testo = '‹Invio›: esegui :%s, cioè %s. ‹Esc›: annulli e torni dov\'eri.' },
+  -- Non è nella 3.4: a metà di un comando che vale qui (il secondo %s sono uno o più cmd_finisci).
+  cmd_parziale = { titolo = 'RIGA DEI COMANDI', testo = 'Stai scrivendo il comando :%s. %s ‹Esc›: annulli e torni dov\'eri.' },
   cmd_ignoto = { titolo = 'RIGA DEI COMANDI', testo = 'In fondo c\'è il comando «:%s», che qui non serve. ‹Esc›: lo cancelli e torni dov\'eri.' },
   ricerca = { titolo = 'RICERCA', testo = 'Stai scrivendo una ricerca (la apre il tasto /). ‹Esc›: la cancelli e torni dov\'eri.' },
   cmdwin = { titolo = 'FINESTRA DEI COMANDI', testo = 'Si è aperta la finestra dei comandi già scritti (la apre q seguito dai due punti). ‹Ctrl-c›: la chiude e torni alla riga dei comandi; poi ‹Esc›: torni dov\'eri.' },
@@ -104,15 +109,26 @@ M.posti = {
   replace = { titolo = 'SEI IN REPLACE', testo = 'Ogni tasto scrive sopra la lettera che c\'è (l\'ha aperto R o il tasto Ins). ‹Ins›: torni a scrivere normale, in INSERT.' },
   operatore = { titolo = 'NEOVIM ASPETTA', testo = 'Hai premuto %s: Neovim aspetta di sapere su che pezzo di testo agire. ‹Esc›: annulli, e il testo non cambia.' },
   ctrl_o = { titolo = 'UN COMANDO SOLO', testo = 'Hai premuto Ctrl-o: Neovim aspetta un solo comando e poi torna a scrivere. ‹Esc›: torni subito a scrivere.' },
-  aiuto = { titolo = 'FINESTRA IN PIÙ', testo = 'Si è aperto l\'aiuto di Neovim, in inglese (l\'apre il tasto F1). ‹:q› ‹Invio›: lo chiudi e torni al codice.' },
-  divisa = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due (l\'ha fatto Ctrl-w o un comando come :split). ‹:q› ‹Invio›: chiudi questa finestra e torni al codice.' },
+  -- Cambiati costruendo: ‹Ctrl-w› ‹c› chiude solo questa finestra. :q (DattiloEsci) oggi lascia la
+  -- lezione: chiude solo la finestra in più dal compito 6.
+  aiuto = { titolo = 'FINESTRA IN PIÙ', testo = 'Si è aperto l\'aiuto di Neovim, in inglese (l\'apre il tasto F1). ‹Ctrl-w› ‹c›: lo chiudi e torni al codice.' },
+  divisa = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due (l\'ha fatto Ctrl-w o un comando come :split). ‹Ctrl-w› ‹c›: chiudi questa finestra e torni al codice.' },
   divisa_principale = { titolo = 'FINESTRA IN PIÙ', testo = 'Lo schermo si è diviso in due. ‹Ctrl-w› ‹o›: resta solo la finestra del codice; il riquadro torna da solo.' },
   frecce = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹Esc›: smetti di scrivere; poi ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra; poi ‹A›: torni a scrivere in fondo alla riga.' },
   -- in NORMAL ‹Esc› non fa niente: si comincia da ‹A›
   frecce_n = { titolo = 'LE FRECCE SONO SPENTE', testo = 'Le frecce qui sono spente apposta: dattilo insegna i tasti di Vim. ‹A›: torni a scrivere in fondo alla riga. Per spostarti, in NORMAL: ‹h›: sinistra, ‹j›: giù, ‹k›: su, ‹l›: destra.' },
-  ex = { titolo = 'MODALITÀ EX', testo = 'Sei nella modalità Ex (l\'apre g seguito da Q). Scrivi visual, poi ‹Invio›: torni allo schermo normale.' },
-  sconosciuto = { titolo = 'POSTO SCONOSCIUTO', testo = 'Sei in una modalità di Neovim che la guida non conosce (in basso: %s). ‹Esc›: di solito riporta in NORMAL; se non basta, ‹:q› ‹Invio›: lasci la lezione, che resta salvata.' },
+  -- Cambiato costruendo: le lettere di visual sono tasti da premere, il primo è ‹v› e non ‹Invio›.
+  ex = { titolo = 'MODALITÀ EX', testo = 'Sei nella modalità Ex (l\'apre g seguito da Q). ‹v› ‹i› ‹s› ‹u› ‹a› ‹l› ‹Invio›: torni allo schermo normale (scrivi visual, poi Invio).' },
+  -- Non è nella 3.4: un terminale in NORMAL (riga 16, dopo ‹Ctrl-\› ‹Ctrl-n›). ‹Ctrl-^› rimette il
+  -- buffer di prima, col testo com'era; :q lascerebbe la lezione.
+  terminale = { titolo = 'UN TERMINALE', testo = 'Sei in un terminale dentro Neovim (l\'apre il comando :terminal). ‹Ctrl-^›: torni al codice di prima, com\'era (tieni premuto Ctrl e premi il tasto 6).' },
+  -- Cambiato costruendo: ‹Ctrl-\› ‹Ctrl-n› porta in NORMAL da ogni modalità, anche da un terminale,
+  -- dove ‹Esc› va al programma e non a Neovim.
+  sconosciuto = { titolo = 'POSTO SCONOSCIUTO', testo = 'Sei in una modalità di Neovim che la guida non conosce (in basso: %s). ‹Ctrl-\\› ‹Ctrl-n›: torni in NORMAL, da qualunque modalità (anche da un terminale, dove Esc non basta). Se il codice non si vede più, ‹:q› ‹Invio›: lasci la lezione, che resta salvata.' },
 }
+
+-- Un pezzo di cmd_parziale: i tasti che mancano, il comando intero e cosa fa.
+M.cmd_finisci = '%s: finisci di scrivere :%s; poi ‹Invio›: %s.'
 
 -- «Adesso» quando una freccia è appena stata premuta: è la riga 13 dei posti (in INSERT e in NORMAL)
 M.frecce = M.posti.frecce.testo

@@ -89,6 +89,18 @@ function F:clic(riga, col)
   vim.rpcrequest(self.canale, 'nvim_get_mode')
 end
 
+-- Trascina col tasto sinistro nella finestra corrente, sulla riga `riga` (da 1), dalla colonna `da`
+-- alla colonna `a` (da 0): con mouse=a apre VISUAL, come per chi seleziona col mouse.
+function F:trascina(riga, da, a)
+  local w = self:lua('local i = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1] return { i.winrow, i.wincol, i.textoff, i.topline }')
+  local r, c = w[1] - 1 + riga - w[4], w[2] - 1 + w[3]
+  -- un evento alla volta: mandati insieme, Neovim non vede il trascinamento
+  for _, x in ipairs({ { 'press', da }, { 'drag', a }, { 'release', a } }) do
+    vim.rpcrequest(self.canale, 'nvim_input_mouse', 'left', x[1], '', 0, r, c + x[2])
+    vim.rpcrequest(self.canale, 'nvim_get_mode')
+  end
+end
+
 function F:messaggi() return vim.rpcrequest(self.canale, 'nvim_exec2', 'messages', { output = true }).output end
 
 -- L'ultimo riquadro della guida: { titolo, sezioni = { [etichetta] = testo }, tipo }; nil se non c'è ancora.
