@@ -21,18 +21,6 @@ local JSON = { luanil = { object = true, array = true } }
 local ORDINE = { 'lezione', 'schermo', 'nuove', 'prossima', 'ultima', 'aperte', 'fatte', 'saltate', 'eseguita' }
 local SCHERMI = { briefing = 'briefing', batti = 'batti', modifica = 'modifica', esegui = 'modifica', rompi = 'modifica',
   spiegazione = 'spiegazione', fine = 'fatto' }
--- Le frasi del canale. Stanno qui e non in guida_testi.lua perché lì sta lavorando un altro compito:
--- si spostano là quando i due lavori si uniscono.
-local TESTI = {
-  nuova = ' · 1 nuova',
-  nuove = ' · %d nuove',
-  finita = ' · sessione finita: niente lezioni nuove',
-  spenta = ' · Dal vivo spento: niente lezioni nuove',
-  dati_fuori = 'la cartella dei dati non è dentro quella di Rifallo tu',
-  assente = 'la lezione non c\'è',
-  attesa = 'Aspetto la prossima modifica di Claude a un file JavaScript…',
-}
-
 -- Il canale acceso: nil prima di `avvia` e dopo `ferma`. Campi:
 --   eseguita  il `t` dell'ultima richiesta eseguita      dalvivo  'acceso' | 'spento' | 'finita'
 --   aperte, saltate  liste di id (con `set`)             fatte  { [id] = true }, da progressi.json
@@ -290,11 +278,11 @@ end
 -- Il pezzo in fondo alla barra: « · 2 nuove», o perché non ne arrivano più.
 function M.destra()
   if not canale then return '' end
-  if canale.dalvivo == 'finita' then return TESTI.finita end
-  if canale.dalvivo == 'spento' then return TESTI.spenta end
+  if canale.dalvivo == 'finita' then return T.canale.finita end
+  if canale.dalvivo == 'spento' then return T.canale.spenta end
   local n = canale.coda.nuove
-  if n == 1 then return TESTI.nuova end
-  if n > 1 then return string.format(TESTI.nuove, n) end
+  if n == 1 then return T.canale.nuova end
+  if n > 1 then return string.format(T.canale.nuove, n) end
   return ''
 end
 
@@ -355,26 +343,11 @@ local function avviso(motivo)
 end
 
 local function avviso_apri(id, P)
-  if acceso and not dati_dentro() then return avviso(TESTI.dati_fuori) end
+  if acceso and not dati_dentro() then return avviso(T.canale.dati_fuori) end
   for _, e in ipairs(P and P.errori or {}) do
     if e.file == id .. '.md' then return avviso(e.msg) end
   end
-  avviso(TESTI.assente)
-end
-
--- «Attesa»: niente da fare finché Claude non cambia un'altra funzione. La prima lezione che arriva si apre da sola.
-local function attesa(motivo)
-  local schermo, stato, ui = require('dattilo.schermo'), require('dattilo.stato'), require('dattilo.ui')
-  require('dattilo.lezione').chiudi()
-  require('dattilo.dojo').chiudi()
-  ui.chiudi_tip()
-  stato.schermo, stato.titolo, stato.destra, stato.file, stato.metriche = 'home', 'Rifallo tu', '', 'attesa', nil
-  vim.cmd('redrawtabline')
-  local buf = schermo.buffer('attesa')
-  schermo.scrivi(buf, { {}, { { '   ' .. TESTI.attesa, 'DattiloTesto' } } })
-  schermo.mostra(buf, 'testo')
-  guida.mostra(T.f('titoli.attesa'), (canale and canale.dalvivo ~= 'acceso') and T.attesa_finita or T.attesa, T.comandi_attesa)
-  if motivo then avviso(motivo) end
+  avviso(T.canale.assente)
 end
 
 -- In «Attesa», appena c'è una lezione nuova si apre.
@@ -385,6 +358,21 @@ local function apri_da_attesa()
   end
 end
 
+-- La barra subito, senza aspettare il giro del timer (alle schermate di vivo che non passano da guida.schermata).
+local function barra_subito()
+  if canale and canale.pronto then
+    ricalcola_coda()
+    aggiorna_barra()
+  end
+end
+
+-- In «Attesa» la frase dipende da `dalvivo`: se cambia mentre si è lì (la sessione finisce, Dal vivo
+-- si spegne) la schermata si rifà, perché «appena Claude cambia una funzione…» non sarebbe più vero.
+local function ridisegna_attesa()
+  local a = canale.attesa
+  if a and not corrente() and nome_schermo() == 'attesa' and a.dalvivo ~= canale.dalvivo then M.attesa(a.motivo) end
+end
+
 -- Un giro del timer: i dati, la richiesta di vuoi.json, la coda, la barra, stato.json. Si chiama anche dalle prove.
 function M.controlla()
   if not (canale and canale.pronto) then return end
@@ -393,6 +381,7 @@ function M.controlla()
   if v then esegui_richiesta(v) end
   ricalcola_coda()
   apri_da_attesa()
+  ridisegna_attesa()
   aggiorna_barra()
   M.scrivi_stato()
 end
@@ -421,7 +410,7 @@ local function parti_canale()
   -- niente lezione e niente elenco: la richiesta non ha aperto niente (un elenco con l'avviso, sì)
   if not corrente() and require('dattilo.stato').file ~= 'elenco' then
     local prima = canale.dati_ok and canale.coda.prossima
-    if prima then M.apri(prima) else attesa(not canale.dati_ok and TESTI.dati_fuori or nil) end
+    if prima then M.apri(prima) else M.attesa(not canale.dati_ok and T.canale.dati_fuori or nil) end
   end
   ricalcola_coda()
   canale.pronto = true
@@ -442,7 +431,7 @@ end
 local function fornitore()
   return {
     comandi = function(schermata) return T['comandi_' .. schermata] or '' end,
-    fine = function() return false end,
+    fine = function(s) return M.fatto(s) end,
     su_schermata = function() end,
     destra = destra_fornitore,
   }
@@ -453,11 +442,38 @@ local function parti()
   parti_canale()
 end
 
+---------------------------------------------------------------- i comandi :salta, :ultima ed :elenco
+
+-- Come `:q` in init.lua: un comando con la maiuscola e l'abbreviazione in minuscolo, che vale solo
+-- scrivendo il nome intero. Esistono solo con `vivo` acceso.
+local COMANDI = {
+  { nome = 'salta', comando = 'DattiloSalta', desc = 'Lascia la lezione e apri la prossima' },
+  { nome = 'ultima', comando = 'DattiloUltima', desc = 'Apri l\'ultima modifica di Claude' },
+  { nome = 'elenco', comando = 'DattiloElenco', desc = 'Apri l\'elenco delle lezioni' },
+}
+
+local function crea_comandi()
+  for _, c in ipairs(COMANDI) do
+    -- un errore dentro il comando va nel riquadro, non nella riga dei messaggi (G5)
+    vim.api.nvim_create_user_command(c.comando, function() guida.protetta(function() M[c.nome]() end) end, { desc = c.desc })
+    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && getcmdline() ==# '%s') ? '%s' : '%s'", c.nome, c.nome, c.comando, c.nome))
+  end
+end
+
+local function togli_comandi()
+  for _, c in ipairs(COMANDI) do
+    pcall(vim.api.nvim_del_user_command, c.comando)
+    pcall(vim.cmd, 'cunabbrev ' .. c.nome)
+  end
+  pcall(vim.api.nvim_del_augroup_by_name, 'dattilo_elenco')
+end
+
 function M.avvia(cartella)
   acceso = true
   M.cartella = cartella
   avvia_canale()
   guida.accendi(fornitore())
+  crea_comandi()
   -- all'avvio Neovim, finito init.lua, porta il fuoco sulla prima finestra, che è quella del
   -- riquadro: si parte a Neovim già avviato, così il fuoco resta sulla lezione
   if vim.v.vim_did_enter == 1 then return parti() end
@@ -468,6 +484,7 @@ end
 function M.ferma()
   acceso = false
   ferma_canale()
+  togli_comandi()
   guida.spegni()
 end
 
@@ -485,7 +502,147 @@ function M.apri(id)
   avviso_apri(id, P)
 end
 
--- L'elenco nudo: una riga per lezione, ‹Invio› apre.
+---------------------------------------------------------------- «Attesa»
+
+-- Niente da fare finché Claude non cambia un'altra funzione: la prima lezione che arriva si apre da sola.
+-- `motivo`: perché non si apre niente (i dati fuori dalla cartella), in «Controllo».
+function M.attesa(motivo)
+  local schermo, stato, ui = require('dattilo.schermo'), require('dattilo.stato'), require('dattilo.ui')
+  require('dattilo.lezione').chiudi()
+  require('dattilo.dojo').chiudi()
+  ui.chiudi_tip()
+  stato.schermo, stato.titolo, stato.destra, stato.file, stato.metriche = 'home', 'Rifallo tu', '', 'attesa', nil
+  vim.cmd('redrawtabline')
+  local buf = schermo.buffer('attesa')
+  schermo.scrivi(buf, { {}, { { '   ' .. T.canale.attesa, 'DattiloTesto' } } })
+  schermo.mostra(buf, 'testo')
+  local dalvivo = canale and canale.dalvivo or 'acceso'
+  if canale then canale.attesa = { dalvivo = dalvivo, motivo = motivo } end
+  local adesso = dalvivo == 'finita' and T.attesa_finita or dalvivo == 'spento' and T.attesa_spento or T.attesa
+  guida.mostra(T.f('titoli.attesa'), adesso, T.comandi_attesa)
+  barra_subito()
+  if motivo then avviso(motivo) end
+end
+
+---------------------------------------------------------------- il riepilogo, la prossima, :salta, :ultima
+
+local function tempo(ms) local sec = math.floor(ms / 1000 + 0.5) return string.format('%d:%02d', math.floor(sec / 60), sec % 60) end
+local function perc(p) local x = string.format('%.1f', p):gsub('%.0$', ''):gsub('%.', ',') return x .. '%' end
+
+-- I dati di adesso, per i comandi: una lezione scritta un attimo fa conta già.
+local function fresca()
+  if canale then aggiorna_dati() end
+end
+
+-- Cosa apre ‹Invio› nel riepilogo, `:salta` e «Attesa»: la prima lezione dopo la corrente, non fatta e
+-- non saltata; se dopo non c'è niente, la prima fra quelle lasciate a metà. È la stessa regola in tutti e
+-- tre i posti (l'attesa aprirebbe quella): così il riepilogo non dice «aspetti» e poi riapre una lezione.
+local function da_aprire()
+  if canale.coda.prossima then return canale.coda end
+  return M.coda(canale.P, nil, canale.fatte, canale.saltate.set)
+end
+
+local function titolo_di(id)
+  local P = pacchetto()
+  for _, L in ipairs(P and P.lezioni or {}) do
+    if L.id == id then return L.titolo or id end
+  end
+  return id
+end
+
+-- Il riepilogo di una lezione fatta (lo chiama lezione.fine con la guida accesa): registra il
+-- risultato, mostra i numeri e dice cosa fa ‹Invio›.
+function M.fatto(s)
+  if not (acceso and canale) then return false end
+  local L = s.L
+  local ris = s.risultato or { wpm = 0, precisione = 100, tempo_ms = 0 }
+  require('dattilo.progressi').registra(L.pacchetto .. '/' .. L.id,
+    { wpm = ris.wpm, precisione = ris.precisione, tempo_ms = ris.tempo_ms, tasti_modifica = s.tasti_modifica })
+  local schermo, stato = require('dattilo.schermo'), require('dattilo.stato')
+  stato.file, stato.metriche = 'lezione ' .. L.numero, function() return { 'completata' } end
+  aggiorna_dati() -- la lezione appena fatta è già fra le fatte: la coda di adesso è quella giusta
+  local extra = destra_fornitore()
+  if extra ~= '' then stato.destra = (stato.destra or '') .. extra end
+  vim.cmd('redrawtabline')
+  local coda = da_aprire()
+  local R = T.riepilogo
+  local function etichetta(x) return string.format('   %-11s', x) end
+  local righe = { {}, {
+    { etichetta(R.etichetta_batti), 'DattiloTesto' },
+    { T.f('riepilogo.batti', #L.batti.codice, tempo(ris.tempo_ms)), 'DattiloForte' },
+    { '   ' .. T.f('riepilogo.velocita', ris.wpm, perc(ris.precisione)), 'DattiloVerde' },
+  } }
+  if #L.modifiche > 0 then
+    righe[#righe + 1] = { { etichetta(R.etichetta_modifica), 'DattiloTesto' }, { T.f('riepilogo.modifica', s.tasti_modifica or 0), 'DattiloForte' } }
+  end
+  righe[#righe + 1] = {}
+  local adesso
+  if coda.prossima then
+    local n = coda.nuove == 1 and T.fatto_nuova or T.f('fatto_nuove', coda.nuove)
+    local titolo = titolo_di(coda.prossima)
+    righe[#righe + 1] = { { etichetta(R.etichetta_prossima), 'DattiloTesto' }, { T.f('riepilogo.prossima', titolo), 'DattiloCiano' } }
+    adesso = T.f('fatto_coda', titolo, n)
+  else
+    righe[#righe + 1] = { { etichetta(R.etichetta_prossima), 'DattiloTesto' }, { R.prossima_vuota, 'DattiloMuto' } }
+    adesso = T.fatto_vuota
+  end
+  local buf = schermo.buffer('rifallo-fatto')
+  schermo.scrivi(buf, righe)
+  schermo.mostra(buf, 'testo')
+  vim.api.nvim_win_set_cursor(0, { 2, 0 })
+  -- i tasti valgono solo qui: la schermata rimasta in giro (‹Esc› ‹Ctrl-o›) non apre un'altra lezione mentre se ne scrive una
+  local lezione = require('dattilo.lezione')
+  local function qui(fn) return function() if lezione.s == s and s.passo == 'fine' then fn() end end end
+  local function mappa(tasti, fn)
+    for _, k in ipairs(tasti) do vim.keymap.set('n', k, qui(fn), { buffer = buf, nowait = true, silent = true }) end
+  end
+  mappa({ '<CR>', 'l' }, function() M.prossima() end)
+  mappa({ 'r' }, function() M.rifai() end)
+  mappa({ 'q' }, function() M.elenco() end)
+  guida.mostra(T.f('titoli.fatto', L.breve), adesso, T.comandi_fatto)
+  return true
+end
+
+-- ‹Invio› nel riepilogo: la prossima, o l'attesa se non c'è niente da aprire.
+function M.prossima()
+  if not canale then return end
+  fresca()
+  local p = da_aprire().prossima
+  if p then M.apri(p) else M.attesa() end
+end
+
+-- `:salta`: la lezione resta segnata come saltata (se non è fatta) e si apre la prossima.
+function M.salta()
+  local id = corrente()
+  if not (canale and id) then return end
+  if not canale.fatte[id] then M.segna_saltata(id) end
+  M.prossima()
+end
+
+-- `:ultima`: la lezione non fatta più recente. Se non c'è, o è già quella, lo dice in «Controllo».
+function M.ultima()
+  if not canale then return end
+  fresca()
+  local id = canale.coda.ultima
+  if not id then return guida.avviso(T.ultima_niente) end
+  if id == corrente() then return guida.avviso(T.ultima_gia) end
+  M.apri(id)
+end
+
+-- ‹r› nel riepilogo: la stessa lezione da capo.
+function M.rifai()
+  local id = corrente()
+  if id then M.apri(id) end
+end
+
+---------------------------------------------------------------- l'elenco
+
+local ns_scelta = vim.api.nvim_create_namespace('dattilo_elenco')
+
+-- L'elenco: una riga per lezione, col segno (✓ fatta, ▸ da fare), il titolo, e a destra «nuova» o
+-- «saltata». «Nuova» è come nel contratto per chi non ha una lezione aperta: non fatta e non saltata.
+-- La riga scelta ha lo sfondo (non il segno ▸, che è delle lezioni da fare); ‹Invio› apre quella
+-- dov'è il cursore, anche dopo un clic.
 function M.elenco()
   local schermo, stato, ui = require('dattilo.schermo'), require('dattilo.stato'), require('dattilo.ui')
   require('dattilo.lezione').chiudi()
@@ -493,23 +650,62 @@ function M.elenco()
   ui.chiudi_tip()
   stato.schermo, stato.titolo, stato.destra, stato.file, stato.metriche = 'home', 'Rifallo tu', '', 'elenco', nil
   vim.cmd('redrawtabline')
-  local pacchetti = require('dattilo.pacchetti')
-  pacchetti.dimentica()
+  require('dattilo.pacchetti').dimentica()
+  fresca()
   local P = pacchetto()
-  local lezioni = P and P.lezioni or {}
+  local lezioni = {}
+  for _, L in ipairs(P and P.lezioni or {}) do
+    if lezione_valida(L.id) then lezioni[#lezioni + 1] = L end
+  end
+  local fatte = canale and canale.fatte or {}
+  local saltate = canale and canale.saltate.set or {}
+  local largo = 0
+  for _, L in ipairs(lezioni) do largo = math.max(largo, vim.fn.strdisplaywidth(L.titolo or L.id)) end
+  largo = math.min(largo, math.max(10, vim.o.columns - 24))
+  local function colonna(t)
+    while vim.fn.strdisplaywidth(t) > largo do t = vim.fn.strcharpart(t, 0, vim.fn.strchars(t) - 1) end
+    return t .. string.rep(' ', largo - vim.fn.strdisplaywidth(t))
+  end
   local righe = { {} }
-  for _, L in ipairs(lezioni) do righe[#righe + 1] = { { '   ▸ ' .. L.id .. '  ' .. (L.titolo or ''), 'DattiloTesto' } } end
+  for _, L in ipairs(lezioni) do
+    local fatta = fatte[L.id]
+    local marca = fatta and '' or (saltate[L.id] and T.elenco_saltata or T.elenco_nuova)
+    righe[#righe + 1] = {
+      { '   ' },
+      { (fatta and '✓' or '▸') .. ' ', fatta and 'DattiloVerde' or 'DattiloAccento' },
+      { colonna(L.titolo or L.id), fatta and 'DattiloMuto' or 'DattiloForte' },
+      { fatta and '' or ('  ' .. marca), saltate[L.id] and 'DattiloGiallo' or 'DattiloCiano' },
+    }
+  end
+  local n = #lezioni
   local buf = schermo.buffer('elenco')
   schermo.scrivi(buf, righe)
   schermo.mostra(buf, 'testo')
-  vim.api.nvim_win_set_cursor(0, { math.min(2, #righe), 0 })
-  vim.keymap.set('n', '<CR>', function()
+  local function riga_scelta() return math.max(2, math.min(n + 1, vim.api.nvim_win_get_cursor(0)[1])) end
+  local function pinta()
+    vim.api.nvim_buf_clear_namespace(buf, ns_scelta, 0, -1)
+    if n > 0 then vim.api.nvim_buf_set_extmark(buf, ns_scelta, riga_scelta() - 1, 0, { line_hl_group = 'DattiloSelezione' }) end
+  end
+  local function sposta(d)
+    if n > 0 then vim.api.nvim_win_set_cursor(0, { math.max(2, math.min(n + 1, riga_scelta() + d)), 0 }) end
+    pinta()
+  end
+  local function mappa(tasti, fn)
+    for _, k in ipairs(tasti) do vim.keymap.set('n', k, fn, { buffer = buf, nowait = true, silent = true }) end
+  end
+  mappa({ 'j', '<Down>' }, function() sposta(vim.v.count1) end)
+  mappa({ 'k', '<Up>' }, function() sposta(-vim.v.count1) end)
+  mappa({ '<CR>' }, function()
     -- l'elenco rimasto in giro (‹Ctrl-o›) non apre una lezione mentre se ne scrive un'altra
     if stato.schermo ~= 'home' then return end
-    local L = lezioni[vim.api.nvim_win_get_cursor(0)[1] - 1]
+    local L = lezioni[riga_scelta() - 1]
     if L then M.apri(L.id) end
-  end, { buffer = buf, nowait = true, silent = true })
-  guida.mostra(T.f('titoli.elenco'), T.elenco, T.comandi_elenco)
+  end)
+  vim.api.nvim_create_autocmd('CursorMoved', { group = vim.api.nvim_create_augroup('dattilo_elenco', { clear = true }), buffer = buf, callback = pinta })
+  vim.api.nvim_win_set_cursor(0, { math.min(2, #righe), 0 })
+  pinta()
+  guida.mostra(T.f('titoli.elenco'), n > 0 and T.elenco or T.elenco_vuoto, T.comandi_elenco)
+  barra_subito()
 end
 
 return M

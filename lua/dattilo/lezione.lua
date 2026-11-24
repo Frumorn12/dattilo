@@ -478,6 +478,8 @@ end
 function M.fine(s)
   s.passo = 'fine'
   barre(s)
+  -- con la guida il riepilogo lo fa il fornitore (vivo.fatto): registra, disegna, mappa i tasti
+  if M.guida and M.guida.fine(s) then return end
   local L, ris = s.L, s.risultato or { wpm = 0, precisione = 100, tempo_ms = 0 }
   ris.tasti_modifica = s.tasti_modifica
   progressi.registra(L.pacchetto .. '/' .. L.id, ris)

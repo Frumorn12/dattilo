@@ -222,26 +222,24 @@ T['comando noto: Invio fa quello che la frase dice'] = function()
   end)
 end
 
--- :salta, :ultima ed :elenco arrivano col compito 8: finché non ci sono, scriverli non promette niente.
-T['un comando che non c è ancora non si promette'] = function()
+-- :salta, :ultima ed :elenco ci sono (compito 8) e «Comandi» li scrive: sono comandi noti, e a metà
+-- la frase dice le lettere che mancano. Nelle schermate dove «Comandi» non li scrive, no.
+T[':salta è un comando noto dove «Comandi» lo scrive'] = function()
   con({}, function(F)
     in_batti(F, 'n')
-    uguale(F:lua('return vim.fn.exists(":DattiloSalta")'), 0)
-    F:input(':salta')
-    nel_posto(F, atteso('cmd_ignoto', 'salta'))
-    F:input('<Esc>')
-    -- quando c'è (il compito 8 lo crea e lo scrive in «Comandi»), è un comando noto; a metà, la frase
-    -- dice le lettere che mancano
-    F:lua([[
-      local T = require('dattilo.guida_testi')
-      T.comandi_batti = T.comandi_batti .. ' · ‹:salta› ‹Invio›: passi alla prossima'
-      vim.api.nvim_create_user_command('DattiloSalta', function() end, {})]])
+    uguale(F:lua('return vim.fn.exists(":DattiloSalta")'), 2)
     F:input(':sa')
     nel_posto(F, atteso('cmd_parziale', 'sa', TT.f('cmd_finisci', '‹l› ‹t› ‹a›', 'salta', TT.spiega_comando.salta)))
     F:premi_primo()
     nel_posto(F, atteso('cmd_noto', 'salta', TT.spiega_comando.salta))
     F:input('<Esc>')
     uguale(F:righe(), { 'func' })
+    -- nell'elenco «Comandi» non scrive :salta: lì non serve
+    F:input(':q<CR>')
+    vero(F:aspetta(function() return F:lua('return require("dattilo.stato").schermo') == 'home' end))
+    F:input(':salta')
+    nel_posto(F, atteso('cmd_ignoto', 'salta'))
+    F:input('<Esc>')
   end)
 end
 
@@ -599,7 +597,7 @@ T['il controllo che non passa: seguendo la guida si esce dalla lezione'] = funct
     end
     F:input('<Esc>:w<CR>')
     uguale(F:riquadro().titolo, TT.titoli.ko)
-    vero(F:adesso():find('‹:q› ‹Invio›', 1, true), F:adesso())
+    vero(F:adesso():find('‹:salta› ‹Invio›', 1, true), F:adesso())
     F:premi_primo()
     vero(F:aspetta(function() return F:lua('return require("dattilo.stato").schermo') == 'home' end))
     uguale(F:lua('return require("dattilo.lezione").s'), vim.NIL)

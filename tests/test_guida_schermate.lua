@@ -110,7 +110,7 @@ T[':w con node che rifiuta: il riquadro dice che l errore non è tuo'] = functio
     local a = r.sezioni.Adesso
     uguale(a:sub(1, #'Node non accetta il codice: '), 'Node non accetta il codice: ')
     vero(a:find('SyntaxError', 1, true), a)
-    vero(a:find('‹:q› ‹Invio›', 1, true), a)
+    vero(a:find('‹:salta› ‹Invio›', 1, true), a)
     vero(not F:messaggi():find('$ node', 1, true), F:messaggi())
     -- la lezione non va avanti, e si può ancora scrivere
     uguale(passo(F), 'batti')

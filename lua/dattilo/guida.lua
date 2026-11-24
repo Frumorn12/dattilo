@@ -35,7 +35,9 @@ local SINONIMI_Q = { q = true, ['q!'] = true, wq = true, x = true } -- tutti Dat
 local SINONIMI_QA = {}
 for _, nome in ipairs({ 'qa', 'qall', 'quitall', 'wqa', 'wqall', 'xa', 'xall' }) do SINONIMI_QA[nome] = true end
 -- Con `!` l'abbreviazione scatta appena si preme il `!`, e la riga dei comandi diventa questa
-local ESPANSI = { DattiloEsci = 'q', ['DattiloEsci!'] = 'q', DattiloEsciTutto = 'qa', ['DattiloEsciTutto!'] = 'qa' }
+-- (anche :salta, :ultima ed :elenco: scritti con uno spazio dopo, l'abbreviazione è già scattata)
+local ESPANSI = { DattiloEsci = 'q', ['DattiloEsci!'] = 'q', DattiloEsciTutto = 'qa', ['DattiloEsciTutto!'] = 'qa',
+  DattiloSalta = 'salta', DattiloUltima = 'ultima', DattiloElenco = 'elenco' }
 local COMANDO_DI = { salta = 'DattiloSalta', ultima = 'DattiloUltima', elenco = 'DattiloElenco', ['e!'] = 'DattiloRicomincia' }
 local SELEZIONE = { v = true, V = true, ['\22'] = true, s = true, S = true, ['\19'] = true }
 -- «Comandi» di un posto sbagliato che ha una sola uscita (la sezione normale offrirebbe cose che lì non valgono)
@@ -369,17 +371,21 @@ local function ricalcola()
   end)
 end
 
--- ‹Ctrl-z› (G9): in Neovim mette in pausa il programma, e nel pannello di «Rifallo tu» non c'è una
--- shell che lo riprenda. Qui scrive in «Controllo» perché è spento, e non cambia il titolo.
-local function ctrl_z()
+-- Un avviso di dattilo in «Controllo», senza cambiare il titolo: vale per il testo di adesso (se il
+-- testo di Batti cambia, sparisce) e per la schermata di adesso.
+local function avviso(testo)
   local s = lezione().s
   local righe = nil
   if s and (s.passo == 'batti' or s.passo == 'esegui') and s.buf and vim.api.nvim_buf_is_valid(s.buf) then
     righe = vim.api.nvim_buf_get_lines(s.buf, 0, -1, false)
   end
-  controllo = { testo = T.ctrl_z, righe = righe }
+  controllo = { testo = testo, righe = righe }
   ridisegna()
 end
+
+-- ‹Ctrl-z› (G9): in Neovim mette in pausa il programma, e nel pannello di «Rifallo tu» non c'è una
+-- shell che lo riprenda. Qui scrive in «Controllo» perché è spento, e non cambia il titolo.
+local function ctrl_z() avviso(T.ctrl_z) end
 
 -- fornitore = { comandi = fun(schermata), fine = fun(s), su_schermata = fun(s), destra = fun() }
 function M.accendi(fornitore)
@@ -807,6 +813,10 @@ end
 
 function M.fine(s) return f ~= nil and f.fine ~= nil and f.fine(s) end
 
+-- Un avviso per la schermata di adesso, in «Controllo» (per `:ultima` che non porta da nessuna parte).
+-- Non passa da `eco`, che in Batti sceglie la frase da solo.
+function M.avviso(testo) return avviso(testo) end
+
 ---------------------------------------------------------------- le finestre in più (G7)
 
 -- `:q` (DattiloEsci) in una finestra in più chiude solo quella e riporta nella finestra della
@@ -863,7 +873,7 @@ function M.riprendi(cur, buf)
 end
 
 -- Tutto quello che il resto di dattilo chiama gira protetto.
-for _, nome in ipairs({ 'tip', 'schermata', 'mostra', 'eco', 'fine', 'cambio_voluto', 'esci_da_finestra_in_piu', 'riprendi' }) do
+for _, nome in ipairs({ 'tip', 'schermata', 'mostra', 'eco', 'fine', 'avviso', 'cambio_voluto', 'esci_da_finestra_in_piu', 'riprendi' }) do
   M[nome] = proteggi(M[nome])
 end
 

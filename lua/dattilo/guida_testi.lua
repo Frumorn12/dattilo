@@ -50,20 +50,22 @@ M.batti_scrivi = 'Scrivi il testo grigio, uguale, lettera per lettera. ‹Backsp
 -- «Adesso» nelle altre schermate
 M.briefing = '‹Invio›: apri il codice da riscrivere. Prima, se vuoi, leggi qui sotto cosa ha fatto Claude: non c\'è fretta.'
 M.cmd_w = '‹Invio›: esegui :w, cioè salvi e node controlla il codice.'
--- ‹:salta› arriva col compito 8: fino ad allora l'uscita è ‹:q›, che c'è (il compito 8 rimette ‹:salta›).
-M.controllo_ko = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco, dove scegli un\'altra.'
+M.controllo_ko = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione.'
 -- Non sono nella 3.3: lo stesso controllo che non passa, in INSERT; e il passo esegui (tempo B),
 -- dove il testo non è più quello di Batti: l'errore sta in «Controllo».
-M.controllo_ko_i = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹Esc›: smetti di scrivere; poi ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco, dove scegli un\'altra.'
-M.esegui_ko = 'Il codice è quello della modifica di Claude, quindi l\'errore non è tuo. ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco, dove scegli un\'altra.'
+M.controllo_ko_i = 'Node non accetta il codice: %s. Il testo è uguale al grigio, quindi l\'errore non è tuo. ‹Esc›: smetti di scrivere; poi ‹:salta› ‹Invio›: passi alla prossima lezione.'
+M.esegui_ko = 'Il codice è quello della modifica di Claude, quindi l\'errore non è tuo. ‹:salta› ‹Invio›: passi alla prossima lezione.'
 M.esegui_cambiato = 'Il codice non è più quello della modifica di Claude. ‹:e!› ‹Invio›: lo rimetti com\'era; poi ‹:w› ‹Invio›: lo ricontrolli.'
 M.spiegazione = 'Leggi le note accanto alle righe. ‹Invio›: vai al riepilogo. ‹j›: scendi e ‹k›: sali, se il codice non sta tutto nello schermo.'
 M.fatto_coda = '‹Invio›: apri la prossima lezione, “%s”%s.'
 M.fatto_vuota = '‹Invio›: aspetti la prossima modifica di Claude; la lezione si apre da sola.'
 M.elenco = '‹j›: scendi di una lezione; ‹k›: sali (vanno anche le frecce). ‹Invio›: apri la lezione col ▸.'
 M.attesa = 'Niente da premere: appena Claude cambia una funzione JavaScript, la lezione si apre da sola.'
--- ‹:elenco› arriva col compito 8 (il compito 8 lo rimette: «‹:elenco› ‹Invio›: vedi quelle che ci sono»).
-M.attesa_finita = 'La sessione di Claude è finita: non arrivano altre lezioni. ‹:q› ‹Invio›: chiudi dattilo.'
+M.attesa_finita = 'La sessione di Claude è finita: non arrivano altre lezioni. ‹:elenco› ‹Invio›: vedi quelle che ci sono.'
+-- Non è nella 3.3: «Dal vivo» spento non è una sessione finita.
+M.attesa_spento = 'Dal vivo è spento: non arrivano altre lezioni. ‹:elenco› ‹Invio›: vedi quelle che ci sono.'
+-- Non è nella 3.3: l'elenco quando non c'è nessuna lezione da aprire.
+M.elenco_vuoto = 'Non c\'è nessuna lezione da aprire. ‹:elenco› ‹Invio›: rivedi l\'elenco, quando Claude ne ha preparata una.'
 
 -- «Controllo»
 M.controllo_ok = 'Node ha controllato il codice: sta in piedi.'
@@ -78,18 +80,52 @@ M.non_si_apre = 'Questa lezione non si apre: %s.'
 M.errore_dattilo = 'Errore di dattilo: %s. Il tuo testo non è cambiato.'
 M.ctrl_z = 'Ctrl-z in Neovim mette in pausa il programma, e il pannello resterebbe fermo: qui è spento. Continua da dove eri.'
 
--- «Comandi». Solo comandi che esistono adesso: ‹:salta›, ‹:ultima› ed ‹:elenco› arrivano col
--- compito 8, e «resta salvata» (la bozza) col compito 9, che li rimettono nei testi approvati.
-M.comandi_batti = '‹:w› ‹Invio›: salvi e node controlla · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco; quello che hai scritto qui non si conserva'
-M.comandi_testo = '‹q›: vai all\'elenco delle lezioni'
-M.comandi_modifica = '‹:e!› ‹Invio›: ricominci la modifica da capo · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco'
-M.comandi_fatto = '‹r›: rifai questa lezione · ‹q›: vai all\'elenco delle lezioni'
-M.comandi_elenco = '‹:q› ‹Invio›: chiudi dattilo'
-M.comandi_attesa = '‹:q› ‹Invio›: chiudi dattilo'
+-- «Comandi». «resta salvata» (la bozza) arriva col compito 9: fino ad allora ‹:q› dice che il testo non si conserva.
+M.comandi_batti = '‹:w› ‹Invio›: salvi e node controlla · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco; quello che hai scritto qui non si conserva · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
+M.comandi_testo = '‹q›: vai all\'elenco delle lezioni · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
+M.comandi_modifica = '‹:e!› ‹Invio›: ricominci la modifica da capo · ‹:q› ‹Invio›: lasci la lezione e torni all\'elenco · ‹:salta› ‹Invio›: passi alla prossima'
+M.comandi_fatto = '‹r›: rifai questa lezione · ‹q›: vai all\'elenco delle lezioni · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
+M.comandi_elenco = '‹:ultima› ‹Invio›: apri l\'ultima modifica di Claude · ‹:q› ‹Invio›: chiudi dattilo'
+M.comandi_attesa = '‹:elenco› ‹Invio›: vedi le lezioni già arrivate · ‹:q› ‹Invio›: chiudi dattilo'
 -- Non sono nella 3.3: «Comandi» quando il cursore è in un altro buffer (il %d è il numero del codice)
 M.comandi_altro = '‹:b%d› ‹Invio›: torni al codice della lezione, com\'era'
 -- Non è nella 3.3: «Comandi» in una finestra in più (‹:w› nell'aiuto dà un errore, ‹q› registra una macro)
 M.comandi_finestra = '‹:q› ‹Invio›: chiudi questa finestra e torni al codice'
+
+-- Il canale con l'app (la barra in alto, i dati fuori posto): erano in vivo.lua, il testo non è cambiato.
+M.canale = {
+  nuova = ' · 1 nuova',
+  nuove = ' · %d nuove',
+  finita = ' · sessione finita: niente lezioni nuove',
+  spenta = ' · Dal vivo spento: niente lezioni nuove',
+  dati_fuori = 'la cartella dei dati non è dentro quella di Rifallo tu',
+  assente = 'la lezione non c\'è',
+  attesa = 'Aspetto la prossima modifica di Claude a un file JavaScript…',
+}
+
+-- Il riepilogo (5.11): «Batti  N righe in M:SS   P parole al minuto · Q% di precisione», la Modifica del tempo B
+-- (un conto, senza par né stelle) e la prossima in coda.
+M.riepilogo = {
+  etichetta_batti = 'Batti',
+  etichetta_modifica = 'Modifica',
+  etichetta_prossima = 'Prossima',
+  batti = '%d righe in %s',
+  velocita = '%s parole al minuto · %s di precisione',
+  modifica = '%d tasti',
+  prossima = '“%s”',
+  prossima_vuota = 'arriva con la prossima modifica di Claude',
+}
+-- il secondo %s di fatto_coda
+M.fatto_nuova = ' (1 nuova)'
+M.fatto_nuove = ' (%d nuove)'
+
+-- L'elenco: a destra di ogni lezione non fatta (non è nella 3.3: «nuova» e «saltata» sono nella 5.11)
+M.elenco_nuova = 'nuova'
+M.elenco_saltata = 'saltata'
+
+-- «Controllo»: i comandi :ultima che non portano da nessuna parte (non sono nella 3.3)
+M.ultima_gia = 'Questa è già l\'ultima modifica di Claude: non ce n\'è una più recente da fare.'
+M.ultima_niente = 'Non c\'è nessuna lezione da fare.'
 
 -- Modifica (tempo B)
 M.mod_parole = 'Sei in NORMAL: qui i tasti spostano il cursore e cambiano il testo. A parole: %s Se ti blocchi, fra 15 secondi senza tasti qui compaiono i tasti esatti, uno alla volta.'
