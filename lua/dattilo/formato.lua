@@ -53,43 +53,92 @@ end
 
 local ESTENSIONI_CODICE = { c = true, js = true, mjs = true, cjs = true }
 
--- Le soluzioni le esegue il verificatore: dei comandi ':' sono ammessi solo questi (più i numeri di riga).
+-- Le soluzioni le esegue il verificatore, e `dattilo vivo --prova` le esegue su lezioni scritte da un modello (testo
+-- non fidato): dei comandi ':' sono ammessi solo questi (più i numeri di riga).
+-- Questa lista è una prima difesa e non basta da sola: i tasti girano comunque dentro bwrap. Si guardano i tasti veri
+-- (vim.keycode), così <c-r>, <C-R>, <Char-18> e il byte vero sono la stessa cosa.
 local EX_PERMESSI = { s = true, substitute = true, sor = true, sort = true, noh = true, nohlsearch = true }
 
-local INVIO = { cr = true, enter = true, ['return'] = true, nl = true, ['c-m'] = true, ['c-j'] = true }
+local KENTER = vim.keycode('<kEnter>') -- l'Invio del tastierino non è un byte solo
 
--- Comandi ':' che la soluzione esegue davvero (chiusi da un Invio), con i tasti speciali in mezzo.
-local function comandi_eseguiti(sol)
+-- Comandi ':' che la soluzione esegue davvero (chiusi da un Invio), sui tasti veri.
+local function comandi_eseguiti(k)
   local out, i = {}, 1
   while true do
-    local p = sol:find(':', i, true)
+    local p = k:find(':', i, true)
     if not p then break end
-    local j, testo, eseguito = p + 1, '', false
-    while j <= #sol do
-      local tok = sol:match('^<[^<>]+>', j)
-      if tok then
-        local t = tok:sub(2, -2):lower()
-        if INVIO[t] then eseguito = true break end
-        if t == 'esc' or t == 'c-c' or t == 'c-[' then break end
-        testo, j = testo .. tok, j + #tok
-      else
-        testo, j = testo .. sol:sub(j, j), j + 1
-      end
+    local j, eseguito = p + 1, false
+    while j <= #k do
+      local c = k:sub(j, j)
+      if c == '\r' or c == '\n' or k:sub(j, j + #KENTER - 1) == KENTER then eseguito = true break end
+      if c == '\27' or c == '\3' then break end -- <Esc>, <C-c> (anche <C-[>): il comando non parte
+      j = j + 1
     end
-    if eseguito then out[#out + 1] = testo i = j + 1 else i = p + 1 end
+    if eseguito then out[#out + 1] = k:sub(p + 1, j - 1) i = j + 1 else i = p + 1 end
   end
   return out
 end
 
+-- Dopo l'indirizzo di un comando (righe, segni, ricerche, +/-): il resto, che comincia dal nome del comando.
+local function dopo_indirizzo(t)
+  local i = 1
+  while i <= #t do
+    local c = t:sub(i, i)
+    if c:match("[%s%d,.%%$*+%-;]") then i = i + 1
+    elseif c == "'" then i = i + 2 -- un segno: 'a, '<, '>
+    elseif c == '/' or c == '?' then -- una ricerca come indirizzo: /testo/
+      local fine = i + 1
+      while fine <= #t and t:sub(fine, fine) ~= c do fine = fine + (t:sub(fine, fine) == '\\' and 2 or 1) end
+      if fine > #t then break end
+      i = fine + 1
+    else break end
+  end
+  return t:sub(i)
+end
+
+-- Apre la finestra dei comandi? q: sempre, q/ e q? quando il q non chiude una registrazione (qa… q /cerca<CR>).
+-- Chi registra una macro ha scritto prima qa, qq…: non si distingue da un qa dentro un testo, ma q/ da solo non basta a niente
+-- (i comandi che ci si scrivono dentro si vedono come tutti gli altri).
+local function apre_la_finestra(k)
+  if k:find('\6', 1, true) then return true end -- <C-f> nella riga dei comandi
+  local registra, i = false, 1
+  while i <= #k do
+    local c = k:sub(i, i)
+    if c == '\128' then i = i + 3 -- un tasto speciale: tre byte
+    elseif c == 'q' then
+      local n = k:sub(i + 1, i + 1)
+      if n == ':' then return true end
+      if registra then registra, i = false, i + 1 -- chiude la macro
+      elseif n == '/' or n == '?' then return true
+      elseif n:match('[%w"]') then registra, i = true, i + 2 -- apre una macro: qa, qq, q0
+      else i = i + 1 end
+    else i = i + 1 end
+  end
+  return false
+end
+
 function M.soluzione_non_ammessa(sol)
-  if sol:find('<C-r>=', 1, true) or sol:find('<C-R>=', 1, true) or sol:find('\\=', 1, true) or sol:find('!!', 1, true) then
+  local k = vim.keycode(sol)
+  -- espressioni: il registro = (<C-r>=, "=, @=), <C-\>e nella riga dei comandi, \= in :s; filtri della shell: !!
+  if k:find('\18[\18\15\16]?=') or k:find('\28e', 1, true) or k:find('"=', 1, true) or k:find('@=', 1, true)
+    or k:find('\\=', 1, true) or k:find('!!', 1, true) then
     return 'la soluzione usa espressioni o filtri della shell'
   end
   if sol:find('[\r\n]') then return 'la soluzione contiene un a capo vero: usa <CR>' end
-  for _, testo in ipairs(comandi_eseguiti(sol)) do
+  for c in sol:gmatch('%c') do
+    if c ~= '\t' then return 'la soluzione contiene un carattere di controllo vero: scrivi il tasto come <Esc>, <C-r>…' end
+  end
+  if apre_la_finestra(k) then return 'la soluzione apre la finestra dei comandi (q:, q/, q? o <C-f>)' end
+  if k:find('gQ', 1, true) then return 'la soluzione entra nel modo Ex (gQ)' end
+  for _, testo in ipairs(comandi_eseguiti(k)) do
+    if testo:find('[%c\128]') then return 'la soluzione usa un tasto speciale dentro un comando : (<C-r>, <C-b>, le frecce, <BS>…): scrivi il comando intero' end
     if testo:find('[!|]') then return 'la soluzione usa un comando con ! o |' end
-    local nome = testo:gsub('<[^<>]+>', ''):match("^[%s%d,.%%$'<>]*(%a+)")
-    if nome and not EX_PERMESSI[nome] then return 'comando non ammesso nella soluzione: :' .. nome .. ' (ammessi :s, :sort, :noh e i numeri di riga)' end
+    local resto = dopo_indirizzo(testo)
+    local nome = resto:match('^%a+')
+    if nome and not EX_PERMESSI[nome] then
+      return 'comando non ammesso nella soluzione: :' .. nome .. ' (ammessi :s, :sort, :noh e i numeri di riga)'
+    end
+    if resto:match('^[@=]') then return 'comando non ammesso nella soluzione: :' .. resto:sub(1, 1) .. ' (ammessi :s, :sort, :noh e i numeri di riga)' end
   end
   return nil
 end
