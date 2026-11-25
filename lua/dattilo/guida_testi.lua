@@ -91,8 +91,9 @@ M.comandi_altro = '‹:b%d› ‹Invio›: torni al codice della lezione, com\'e
 -- Non è nella 3.3: «Comandi» in una finestra in più (‹:w› nell'aiuto dà un errore, ‹q› registra una macro)
 M.comandi_finestra = '‹:q› ‹Invio›: chiudi questa finestra e torni al codice'
 -- Non è nella 3.3: «Comandi» nella spiegazione. Uscire da qui non segna la lezione: la segna il riepilogo.
--- ATTENZIONE al merge: la spiegazione legge questa e NON comandi_testo; ogni comando che si aggiunge a comandi_testo va messo anche qui.
-M.comandi_spiegazione = '‹q›: vai all\'elenco delle lezioni, ma la lezione non conta come fatta finché non arrivi al riepilogo · ‹Invio›: vai al riepilogo'
+-- ATTENZIONE: la spiegazione legge questa e NON comandi_testo; ogni comando che si aggiunge a comandi_testo (come ‹:salta› e ‹:ultima›) va messo anche qui.
+-- La prova «ogni comando scritto fa quello che dice» (test_vivo_schermate.lua) controlla ogni voce di questa riga.
+M.comandi_spiegazione = '‹q›: vai all\'elenco delle lezioni, ma la lezione non conta come fatta finché non arrivi al riepilogo · ‹Invio›: vai al riepilogo · ‹:salta› ‹Invio›: passi alla prossima · ‹:ultima› ‹Invio›: vai all\'ultima modifica di Claude'
 
 -- Il canale con l'app (la barra in alto, i dati fuori posto): erano in vivo.lua, il testo non è cambiato.
 M.canale = {

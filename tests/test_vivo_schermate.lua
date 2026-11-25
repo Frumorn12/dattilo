@@ -491,10 +491,11 @@ local SCHERMATE = {
     },
   },
   spiegazione = {
-    comandi = 'comandi_testo',
+    comandi = 'comandi_spiegazione',
     entra = alla_spiegazione,
     voce = {
       q = function(F) vero(F:aspetta(function() return titolo(F) == TT.titoli.elenco end), tostring(titolo(F))) end,
+      ['<CR>'] = function(F) vero(F:aspetta(function() return passo(F) == 'fine' end), 'passo: ' .. tostring(passo(F))) end,
       [':salta<CR>'] = function(F) vero(F:aspetta(function() return id(F) == '002-saluto' end), tostring(id(F))) end,
       [':ultima<CR>'] = function(F) vero(F:aspetta(function() return id(F) == '003-x' end), tostring(id(F))) end,
     },

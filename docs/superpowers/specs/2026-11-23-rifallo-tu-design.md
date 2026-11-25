@@ -1557,3 +1557,6 @@ I testi della guida nuovi o cambiati rispetto a quelli approvati, uno per riga, 
 - `:b 4` (con lo spazio) vale come `:b4`.
 - Con la guida le abbreviazioni (`q`, `q!`, `wq`, `x`, `e!`, e quelle di `:qa`) guardano la riga senza gli spazi davanti: `: qa` e `: q` fanno quello che la guida dice (`init.abbreviazioni(true)`, tolte da `spegni`).
 - La prova «ogni comando scritto nei testi esiste» vede anche i comandi in chiaro (`:nome`) e accetta solo il nome intero, un comando di dattilo (`:salta` è `:DattiloSalta`) o una delle abbreviazioni scritte apposta (`w`, `q`, `e`, `b`, `bn`, `qa`): ‹:sal› non passa.
+
+**Dopo l'unione dei rami (25/11): compiti 8 e 9 con le correzioni 5 e 6.**
+- «Comandi» della spiegazione (`comandi_spiegazione`) scrive anche ‹:salta› e ‹:ultima›, come `comandi_testo` del briefing: la spiegazione legge `comandi_spiegazione`, e senza quelle due voci la guida diceva «qui non serve» a un comando che funziona. La prova «ogni comando scritto fa quello che dice» guarda ogni voce di quella riga.

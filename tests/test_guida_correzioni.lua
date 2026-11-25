@@ -450,6 +450,23 @@ T['B2: nella spiegazione «Comandi» dice che il tasto q non segna la lezione'] 
   end)
 end
 
+-- Dopo l'unione col compito 8: «Comandi» della spiegazione è comandi_spiegazione, non più comandi_testo, e
+-- scrive anche :salta e :ultima (la guida riconosce i comandi che «Comandi» scrive).
+T['la spiegazione: :salta e :ultima sono comandi noti e «Comandi» li scrive'] = function()
+  con({}, function(F)
+    alla_spiegazione(F)
+    local C = riquadro_fermo(F).sezioni.Comandi
+    uguale(C, TT.comandi_spiegazione)
+    vero(C:find('‹:salta› ‹Invio›', 1, true) and C:find('‹:ultima› ‹Invio›', 1, true), C)
+    F:input(':salta')
+    nel_posto(F, atteso('cmd_noto', 'salta', TT.spiega_comando.salta))
+    F:input('<Esc>:ultima')
+    nel_posto(F, atteso('cmd_noto', 'ultima', TT.spiega_comando.ultima))
+    F:input('<Esc>')
+    uguale(passo(F), 'spiegazione')
+  end)
+end
+
 T['B2: arrivando al riepilogo la lezione si segna'] = function()
   local c = M.cartella()
   con({ cartella = c }, function(F)
