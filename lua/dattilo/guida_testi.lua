@@ -59,7 +59,11 @@ M.esegui_cambiato = 'Il codice non è più quello della modifica di Claude. ‹:
 M.spiegazione = 'Leggi le note accanto alle righe. ‹Invio›: vai al riepilogo. ‹j›: scendi e ‹k›: sali, se il codice non sta tutto nello schermo.'
 M.fatto_coda = '‹Invio›: apri la prossima lezione, “%s”%s.'
 M.fatto_vuota = '‹Invio›: aspetti la prossima modifica di Claude; la lezione si apre da sola.'
-M.elenco = '‹j›: scendi di una lezione; ‹k›: sali (vanno anche le frecce). ‹Invio›: apri la lezione col ▸.'
+-- Non sono nella 3.3: il riepilogo quando non arrivano lezioni (la barra dice «sessione finita» o «Dal vivo spento»).
+M.fatto_vuota_finita = '‹Invio›: vai all\'attesa. La sessione di Claude è finita, quindi non arrivano altre lezioni.'
+M.fatto_vuota_spento = '‹Invio›: vai all\'attesa. Dal vivo è spento, quindi non arrivano altre lezioni.'
+-- Cambiato costruendo: ‹Invio› apre la lezione dove sta il cursore, quella con lo sfondo; il ▸ è delle lezioni da fare, e la prima è spesso già fatta.
+M.elenco = '‹j›: scendi di una lezione; ‹k›: sali (vanno anche le frecce). ‹Invio›: apri la lezione dove sta il cursore, quella con lo sfondo. Il ▸ segna quelle ancora da fare.'
 M.attesa = 'Niente da premere: appena Claude cambia una funzione JavaScript, la lezione si apre da sola.'
 M.attesa_finita = 'La sessione di Claude è finita: non arrivano altre lezioni. ‹:elenco› ‹Invio›: vedi quelle che ci sono.'
 -- Non è nella 3.3: «Dal vivo» spento non è una sessione finita.
@@ -104,6 +108,9 @@ M.canale = {
   dati_fuori = 'la cartella dei dati non è dentro quella di Rifallo tu',
   assente = 'il file non c\'è più',
   attesa = 'Aspetto la prossima modifica di Claude a un file JavaScript…',
+  -- Non sono nella 3.3: il corpo dell'attesa quando non arriva più niente (come attesa_finita e attesa_spento)
+  attesa_finita = 'La sessione di Claude è finita: non aspetto altre modifiche.',
+  attesa_spento = 'Dal vivo è spento: non aspetto altre modifiche.',
 }
 
 -- Il riepilogo (5.11): «Batti  N righe in M:SS   P parole al minuto · Q% di precisione», la Modifica del tempo B
@@ -117,6 +124,9 @@ M.riepilogo = {
   modifica = '%d tasti',
   prossima = '“%s”',
   prossima_vuota = 'arriva con la prossima modifica di Claude',
+  -- Non sono nella 3.3: quando non arrivano lezioni
+  prossima_finita = 'nessuna: la sessione di Claude è finita',
+  prossima_spento = 'nessuna: Dal vivo è spento',
 }
 -- il secondo %s di fatto_coda
 M.fatto_nuova = ' (1 nuova)'

@@ -258,6 +258,14 @@ local function apri_da_fuori(id)
   M.apri(id)
 end
 
+-- La frase giusta per `dalvivo` ('acceso', 'finita' o 'spento'): quando non arrivano più lezioni, le frasi
+-- che promettono «la lezione si apre da sola» non sono vere.
+local function per_dalvivo(dalvivo, acceso, finita, spento)
+  if dalvivo == 'finita' then return finita end
+  if dalvivo == 'spento' then return spento end
+  return acceso
+end
+
 -- È il momento di cambiare schermata da soli? No se la persona ha qualcosa a metà che una schermata
 -- nuova romperebbe: la riga dei comandi (anche con :w scritto), un operatore in attesa (d), la finestra dei
 -- comandi (q:), «Premi INVIO» o un comando esterno. Sono stati di pochi secondi: la richiesta aspetta il
@@ -386,9 +394,23 @@ end
 
 -- In «Attesa» la frase dipende da `dalvivo`: se cambia mentre si è lì (la sessione finisce, Dal vivo
 -- si spegne) la schermata si rifà, perché «appena Claude cambia una funzione…» non sarebbe più vero.
+-- Lo decide il timer, non la persona: aspetta il momento giusto come le richieste (con la finestra dei
+-- comandi aperta darebbe E11), e `canale.attesa` resta com'era, quindi si riprova al giro dopo.
 local function ridisegna_attesa()
   local a = canale.attesa
-  if a and not corrente() and nome_schermo() == 'attesa' and a.dalvivo ~= canale.dalvivo then M.attesa(a.motivo) end
+  if a and not corrente() and nome_schermo() == 'attesa' and a.dalvivo ~= canale.dalvivo and e_il_momento() then M.attesa(a.motivo) end
+end
+
+local disegna_fatto -- più sotto: il riepilogo
+
+-- Lo stesso per il riepilogo: «la lezione si apre da sola» non è più vero se la sessione finisce mentre
+-- lo si legge. Lo decide il timer (vuoi.json), non la persona: aspetta il momento giusto, e si riprova al
+-- giro dopo. Si rifanno solo il testo e il riquadro: niente da registrare (`di_nuovo`).
+local function ridisegna_fatto()
+  local f = canale.fatto
+  if not (f and f.dalvivo ~= canale.dalvivo and e_il_momento()) then return end
+  local s = require('dattilo.lezione').s
+  if s == f.s and s.passo == 'fine' then disegna_fatto(s, true) end
 end
 
 -- Un giro del timer: i dati, la richiesta di vuoi.json, la coda, la barra, stato.json. Si chiama anche dalle prove.
@@ -400,6 +422,7 @@ function M.controlla()
   ricalcola_coda()
   apri_da_attesa()
   ridisegna_attesa()
+  ridisegna_fatto()
   aggiorna_barra()
   -- rete di sicurezza: una lezione aperta senza passare da `vivo.apri` conta fra le aperte
   if corrente() then aggiungi(canale.aperte, corrente()) end
@@ -675,12 +698,13 @@ function M.attesa(motivo)
   ui.chiudi_tip()
   stato.schermo, stato.titolo, stato.destra, stato.file, stato.metriche = 'home', 'Rifallo tu', '', 'attesa', nil
   vim.cmd('redrawtabline')
-  local buf = schermo.buffer('attesa')
-  schermo.scrivi(buf, { {}, { { '   ' .. T.canale.attesa, 'DattiloTesto' } } })
-  schermo.mostra(buf, 'testo')
   local dalvivo = canale and canale.dalvivo or 'acceso'
+  local buf = schermo.buffer('attesa')
+  local corpo = per_dalvivo(dalvivo, T.canale.attesa, T.canale.attesa_finita, T.canale.attesa_spento)
+  schermo.scrivi(buf, { {}, { { '   ' .. corpo, 'DattiloTesto' } } })
+  schermo.mostra(buf, 'testo')
   if canale then canale.attesa = { dalvivo = dalvivo, motivo = motivo } end
-  local adesso = dalvivo == 'finita' and T.attesa_finita or dalvivo == 'spento' and T.attesa_spento or T.attesa
+  local adesso = per_dalvivo(dalvivo, T.attesa, T.attesa_finita, T.attesa_spento)
   guida.mostra(T.f('titoli.attesa'), adesso, T.comandi_attesa)
   barra_subito()
   if motivo then avviso(motivo) end
@@ -712,22 +736,15 @@ local function titolo_di(id)
   return id
 end
 
--- Il riepilogo di una lezione fatta (lo chiama lezione.fine con la guida accesa): registra il
--- risultato, mostra i numeri e dice cosa fa ‹Invio›.
-function M.fatto(s)
-  if not (acceso and canale) then return false end
+-- Disegna il riepilogo di `s`, la lezione appena fatta, e dice cosa fa ‹Invio›. `di_nuovo`: la schermata
+-- c'è già e si rifà com'è adesso (la sessione è finita mentre la si leggeva): niente da mostrare di nuovo
+-- né da mappare, il cursore e la finestra restano dove sono.
+function disegna_fatto(s, di_nuovo)
   local L = s.L
   local ris = s.risultato or { wpm = 0, precisione = 100, tempo_ms = 0 }
-  require('dattilo.progressi').registra(L.pacchetto .. '/' .. L.id,
-    { wpm = ris.wpm, precisione = ris.precisione, tempo_ms = ris.tempo_ms, tasti_modifica = s.tasti_modifica })
-  M.bozza_togli(L.id)
-  local schermo, stato = require('dattilo.schermo'), require('dattilo.stato')
-  stato.file, stato.metriche = 'lezione ' .. L.numero, function() return { 'completata' } end
-  aggiorna_dati() -- la lezione appena fatta è già fra le fatte: la coda di adesso è quella giusta
-  local extra = destra_fornitore()
-  if extra ~= '' then stato.destra = (stato.destra or '') .. extra end
-  vim.cmd('redrawtabline')
+  local schermo = require('dattilo.schermo')
   local coda = da_aprire()
+  local dalvivo = canale.dalvivo
   local R = T.riepilogo
   local function etichetta(x) return string.format('   %-11s', x) end
   local righe = { {}, {
@@ -746,23 +763,46 @@ function M.fatto(s)
     righe[#righe + 1] = { { etichetta(R.etichetta_prossima), 'DattiloTesto' }, { T.f('riepilogo.prossima', titolo), 'DattiloCiano' } }
     adesso = T.f('fatto_coda', titolo, n)
   else
-    righe[#righe + 1] = { { etichetta(R.etichetta_prossima), 'DattiloTesto' }, { R.prossima_vuota, 'DattiloMuto' } }
-    adesso = T.fatto_vuota
+    -- niente da aprire: la frase dipende da `dalvivo`, perché «si apre da sola» vale solo se Claude è ancora al lavoro
+    righe[#righe + 1] = { { etichetta(R.etichetta_prossima), 'DattiloTesto' },
+      { per_dalvivo(dalvivo, R.prossima_vuota, R.prossima_finita, R.prossima_spento), 'DattiloMuto' } }
+    adesso = per_dalvivo(dalvivo, T.fatto_vuota, T.fatto_vuota_finita, T.fatto_vuota_spento)
   end
   local buf = schermo.buffer('rifallo-fatto')
   schermo.scrivi(buf, righe)
-  schermo.mostra(buf, 'testo')
-  vim.api.nvim_win_set_cursor(0, { 2, 0 })
-  -- i tasti valgono solo qui: la schermata rimasta in giro (‹Esc› ‹Ctrl-o›) non apre un'altra lezione mentre se ne scrive una
-  local lezione = require('dattilo.lezione')
-  local function qui(fn) return function() if lezione.s == s and s.passo == 'fine' then fn() end end end
-  local function mappa(tasti, fn)
-    for _, k in ipairs(tasti) do vim.keymap.set('n', k, qui(fn), { buffer = buf, nowait = true, silent = true }) end
+  canale.fatto = { s = s, dalvivo = dalvivo }
+  if not di_nuovo then
+    schermo.mostra(buf, 'testo')
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    -- i tasti valgono solo qui: la schermata rimasta in giro (‹Esc› ‹Ctrl-o›) non apre un'altra lezione mentre se ne scrive una
+    local lezione = require('dattilo.lezione')
+    local function qui(fn) return function() if lezione.s == s and s.passo == 'fine' then fn() end end end
+    local function mappa(tasti, fn)
+      for _, k in ipairs(tasti) do vim.keymap.set('n', k, qui(fn), { buffer = buf, nowait = true, silent = true }) end
+    end
+    mappa({ '<CR>', 'l' }, function() M.prossima() end)
+    mappa({ 'r' }, function() M.rifai() end)
+    mappa({ 'q' }, function() M.elenco() end)
   end
-  mappa({ '<CR>', 'l' }, function() M.prossima() end)
-  mappa({ 'r' }, function() M.rifai() end)
-  mappa({ 'q' }, function() M.elenco() end)
   guida.mostra(T.f('titoli.fatto', L.breve), adesso, T.comandi_fatto)
+end
+
+-- Il riepilogo di una lezione fatta (lo chiama lezione.fine con la guida accesa): registra il
+-- risultato, mostra i numeri e dice cosa fa ‹Invio›.
+function M.fatto(s)
+  if not (acceso and canale) then return false end
+  local L = s.L
+  local ris = s.risultato or { wpm = 0, precisione = 100, tempo_ms = 0 }
+  require('dattilo.progressi').registra(L.pacchetto .. '/' .. L.id,
+    { wpm = ris.wpm, precisione = ris.precisione, tempo_ms = ris.tempo_ms, tasti_modifica = s.tasti_modifica })
+  M.bozza_togli(L.id)
+  local stato = require('dattilo.stato')
+  stato.file, stato.metriche = 'lezione ' .. L.numero, function() return { 'completata' } end
+  aggiorna_dati() -- la lezione appena fatta è già fra le fatte: la coda di adesso è quella giusta
+  local extra = destra_fornitore()
+  if extra ~= '' then stato.destra = (stato.destra or '') .. extra end
+  vim.cmd('redrawtabline')
+  disegna_fatto(s)
   return true
 end
 

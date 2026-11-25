@@ -562,6 +562,217 @@ T['ogni comando scritto fa quello che dice'] = function()
   vero(provati >= 17, 'comandi provati: ' .. provati)
 end
 
+---------------------------------------------------------------- correzioni finali: la sessione finita, l'elenco, il momento giusto
+
+-- vuoi.json come lo scrive la mod: un file nuovo e poi il rename
+local function vuoi(c, campi)
+  local tmp = c .. '/vuoi.json.tmp'
+  vim.fn.writefile({ vim.json.encode(vim.tbl_extend('force', { v = 1 }, campi)) }, tmp)
+  assert(uv.fs_rename(tmp, c .. '/vuoi.json'))
+end
+
+-- Lezioni già fatte, nei progressi di prima: `ids` sono gli id senza il pacchetto.
+local function gia_fatte(ids)
+  return function(c)
+    local l = {}
+    for _, i in ipairs(ids) do
+      l['rifallo/' .. i] = { volte = 1, completata = true, migliore_wpm = 10, ultima = { wpm = 10, precisione = 100, tempo_ms = 5000 } }
+    end
+    vim.fn.mkdir(c .. '/dati/dattilo', 'p')
+    vim.fn.writefile({ vim.json.encode({ lezioni = l, sessioni = {}, sbloccate = vim.empty_dict() }) }, c .. '/dati/dattilo/progressi.json')
+  end
+end
+
+local function barra(F) return F:lua('return require("dattilo.stato").destra') or '' end
+
+local function adesso_e_controllo(F)
+  local r = F:riquadro()
+  return r.sezioni.Adesso, r.sezioni.Controllo
+end
+
+local function senza_errore(F, cosa)
+  local _, c = adesso_e_controllo(F)
+  vero(not (c or ''):find('Errore di dattilo', 1, true), (cosa or '') .. ': ' .. tostring(c))
+  uguale(F:lua('return require("dattilo.guida").errore_disegno()'), vim.NIL, cosa)
+end
+
+-- A1: la sessione finita e «Dal vivo» spento
+
+-- Con 002 già fatta, finire la 001 porta a un riepilogo senza «prossima»: lì ‹Invio› va all'attesa.
+local function senza_prossima(dalvivo)
+  return function(c)
+    gia_fatte({ '002-saluto' })(c)
+    vuoi(c, { dalvivo = dalvivo })
+  end
+end
+
+local CASI_DALVIVO = {
+  { dalvivo = 'finita', barra = 'sessione finita' },
+  { dalvivo = 'spento', barra = 'Dal vivo spento' },
+}
+
+for _, caso in ipairs(CASI_DALVIVO) do
+  T['A1: riepilogo e attesa con dalvivo ' .. caso.dalvivo .. ' non promettono lezioni che non arrivano'] = function()
+    con(function(F)
+      al_riepilogo(F)
+      -- la barra dice che non arrivano lezioni: il riepilogo non dice il contrario
+      vero(F:aspetta(function() return barra(F):find(caso.barra, 1, true) ~= nil end), barra(F))
+      local adesso = adesso_e_controllo(F)
+      vero(not adesso:find('si apre da sola', 1, true), 'il riepilogo promette: ' .. adesso)
+      vero(not testo(F):find('arriva con la prossima modifica', 1, true), testo(F))
+      uguale(adesso, TT['fatto_vuota_' .. caso.dalvivo])
+      vero(testo(F):find(TT.riepilogo['prossima_' .. caso.dalvivo], 1, true), testo(F))
+      -- ‹Invio› porta all'attesa, e anche lì il corpo dice la stessa cosa di «Adesso»
+      F:input('<CR>')
+      vero(F:aspetta(function() return titolo(F) == TT.titoli.attesa end), tostring(titolo(F)))
+      vero(not testo(F):find('Aspetto la prossima modifica', 1, true), 'il corpo dell\'attesa aspetta: ' .. testo(F))
+      uguale(F:riquadro().sezioni.Adesso, TT['attesa_' .. caso.dalvivo])
+      vero(testo(F):find(TT.canale['attesa_' .. caso.dalvivo], 1, true), testo(F))
+    end, senza_prossima(caso.dalvivo))
+  end
+end
+
+-- La sessione finisce (o Dal vivo si spegne) mentre si legge il riepilogo: la schermata si rifà, una
+-- volta sola, senza registrare la lezione due volte; e torna com'era se Dal vivo si riaccende.
+T['A1: il riepilogo si rifà se la sessione finisce mentre lo si legge'] = function()
+  con(function(F, c)
+    al_riepilogo(F)
+    uguale(adesso_e_controllo(F), TT.fatto_vuota)
+    vuoi(c, { dalvivo = 'finita' })
+    vero(F:aspetta(function() return adesso_e_controllo(F) == TT.fatto_vuota_finita end, 1500), adesso_e_controllo(F))
+    vero(testo(F):find(TT.riepilogo.prossima_finita, 1, true) and not testo(F):find('arriva con la prossima modifica', 1, true), testo(F))
+    uguale(progressi_json(c).lezioni['rifallo/001-somma'].volte, 1)
+    senza_errore(F, 'dopo la sessione finita')
+    vuoi(c, { dalvivo = 'spento' })
+    vero(F:aspetta(function() return adesso_e_controllo(F) == TT.fatto_vuota_spento end, 1500), adesso_e_controllo(F))
+    vuoi(c, { dalvivo = 'acceso' })
+    vero(F:aspetta(function() return adesso_e_controllo(F) == TT.fatto_vuota end, 1500), adesso_e_controllo(F))
+    uguale(progressi_json(c).lezioni['rifallo/001-somma'].volte, 1)
+    -- il riepilogo rifatto funziona ancora: ‹Invio› va all'attesa
+    F:input('<CR>')
+    vero(F:aspetta(function() return titolo(F) == TT.titoli.attesa end), tostring(titolo(F)))
+  end, gia_fatte({ '002-saluto' }))
+end
+
+-- Anche il riepilogo aspetta il momento giusto, come le richieste di vuoi.json: con la riga dei comandi a
+-- metà la schermata non cambia sotto le mani, e si rifà appena la persona ha finito.
+T['A1: il riepilogo non si rifà con la riga dei comandi aperta, e si rifà dopo'] = function()
+  con(function(F, c)
+    al_riepilogo(F)
+    F:input(':ult')
+    uguale(F:modo(), 'c')
+    vuoi(c, { dalvivo = 'finita' })
+    vim.wait(1300)
+    uguale(F:modo(), 'c', 'la riga dei comandi è stata chiusa')
+    uguale(F:lua('return vim.fn.getcmdline()'), 'ult')
+    vero(testo(F):find(TT.riepilogo.prossima_vuota, 1, true), testo(F))
+    F:input('<Esc>')
+    vero(F:aspetta(function() return adesso_e_controllo(F) == TT.fatto_vuota_finita end, 1500), adesso_e_controllo(F))
+    vero(testo(F):find(TT.riepilogo.prossima_finita, 1, true), testo(F))
+    senza_errore(F, 'dopo la riga dei comandi')
+    uguale(progressi_json(c).lezioni['rifallo/001-somma'].volte, 1)
+  end, gia_fatte({ '002-saluto' }))
+end
+
+-- Con la finestra dei comandi aperta (q: nell'attesa, ‹:› ‹Ctrl-f› nel riepilogo, dove ‹q› è una mappa)
+-- la schermata non si rifà e non dà E11; chiusa la finestra, si rifà al giro dopo.
+T['A1: il riepilogo non si rifà con la finestra dei comandi aperta, e si rifà dopo'] = function()
+  con(function(F, c)
+    al_riepilogo(F)
+    F:input(':<C-f>')
+    uguale(F:lua('return vim.fn.getcmdwintype()'), ':')
+    vuoi(c, { dalvivo = 'finita' })
+    vim.wait(1300)
+    uguale(F:lua('return vim.fn.getcmdwintype()'), ':')
+    senza_errore(F, 'con la finestra dei comandi aperta')
+    vero(not F:messaggi():find('E11', 1, true), F:messaggi())
+    F:input('<C-c>')
+    F:input('<Esc>')
+    vero(F:aspetta(function() return adesso_e_controllo(F) == TT.fatto_vuota_finita end, 1500), adesso_e_controllo(F))
+    senza_errore(F, 'dopo la finestra dei comandi')
+    uguale(progressi_json(c).lezioni['rifallo/001-somma'].volte, 1)
+  end, gia_fatte({ '002-saluto' }))
+end
+
+-- A2: l'elenco dice dove porta ‹Invio›
+
+-- La riga con lo sfondo (DattiloSelezione): quella che ‹Invio› apre.
+local function riga_scelta(F)
+  return F:lua([[
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, -1, 0, -1, { details = true })) do
+      if m[4].line_hl_group == 'DattiloSelezione' then return m[2] + 1 end
+    end]])
+end
+
+-- Con la 001 già fatta (✓) e la 002 nuova (▸): ‹Invio› subito apre la lezione dove sta il cursore, la 001.
+-- La frase non può dire che apre «la lezione col ▸».
+T['A2: ‹Invio› nell\'elenco apre la lezione dove sta il cursore, e la frase lo dice'] = function()
+  con(function(F)
+    briefing(F)
+    uguale(id(F), '002-saluto', 'all\'avvio si apre la prima non fatta')
+    F:input(':elenco<CR>')
+    vero(F:aspetta(function() return titolo(F) == TT.titoli.elenco end), tostring(titolo(F)))
+    local adesso = F:riquadro().sezioni.Adesso
+    uguale(adesso, TT.elenco)
+    -- la lezione che ‹Invio› apre è quella del cursore e dello sfondo, e qui è la 001: ✓, senza ▸
+    local scelta = riga_scelta(F)
+    uguale(F:lua('return vim.api.nvim_win_get_cursor(0)[1]'), scelta)
+    local riga = F:righe()[scelta]
+    vero(riga:find('✓', 1, true) and not riga:find('▸', 1, true), riga)
+    vero(not adesso:find('col ▸', 1, true), 'la frase promette il ▸: ' .. adesso)
+    vero(adesso:find('‹Invio›: apri la lezione dove sta il cursore', 1, true), adesso)
+    F:input('<CR>')
+    vero(F:aspetta(function() return id(F) == '001-somma' end), tostring(id(F)))
+    -- con ‹j› la scelta passa alla 002, quella col ▸, e ‹Invio› apre quella
+    F:input(':elenco<CR>')
+    vero(F:aspetta(function() return titolo(F) == TT.titoli.elenco end))
+    F:input('j')
+    local riga2 = F:righe()[riga_scelta(F)]
+    vero(riga2:find('▸', 1, true) and riga2:find('nuova', 1, true), riga2)
+    F:input('<CR>')
+    vero(F:aspetta(function() return id(F) == '002-saluto' end), tostring(id(F)))
+  end, gia_fatte({ '001-somma' }))
+end
+
+-- A3: l'attesa aspetta il momento giusto
+
+T['A3: l\'attesa non si rifà con la finestra dei comandi aperta, e si rifà dopo'] = function()
+  con(function(F, c)
+    vero(F:aspetta(function() return titolo(F) == TT.titoli.attesa end), tostring(titolo(F)))
+    F:input('q:')
+    uguale(F:lua('return vim.fn.getcmdwintype()'), ':')
+    vuoi(c, { dalvivo = 'finita' })
+    vim.wait(1300)
+    uguale(F:lua('return vim.fn.getcmdwintype()'), ':')
+    senza_errore(F, 'con q: aperta')
+    vero(not F:messaggi():find('E11', 1, true), F:messaggi())
+    F:input('<C-c>')
+    F:input('<Esc>')
+    -- chiusa la finestra, l'attesa si rifà da sola al giro dopo
+    vero(F:aspetta(function() return adesso_e_controllo(F) == TT.attesa_finita end, 1500), adesso_e_controllo(F))
+    senza_errore(F, 'dopo q:')
+    vero(not testo(F):find('Aspetto la prossima modifica', 1, true), testo(F))
+  end, senza_lezioni)
+end
+
+T['A3: l\'attesa non si rifà con la riga dei comandi aperta, e si rifà dopo'] = function()
+  con(function(F, c)
+    vero(F:aspetta(function() return titolo(F) == TT.titoli.attesa end), tostring(titolo(F)))
+    F:input(':ele')
+    uguale(F:modo(), 'c')
+    vuoi(c, { dalvivo = 'spento' })
+    vim.wait(1300)
+    uguale(F:modo(), 'c', 'la riga dei comandi è stata chiusa')
+    uguale(F:lua('return vim.fn.getcmdline()'), 'ele')
+    -- la schermata non cambia sotto le mani mentre si scrive il comando
+    vero(testo(F):find(TT.canale.attesa, 1, true), testo(F))
+    F:input('<Esc>')
+    vero(F:aspetta(function() return adesso_e_controllo(F) == TT.attesa_spento end, 1500), adesso_e_controllo(F))
+    vero(testo(F):find(TT.canale.attesa_spento, 1, true), testo(F))
+    senza_errore(F, 'dopo la riga dei comandi')
+  end, senza_lezioni)
+end
+
 ---------------------------------------------------------------- senza vivo
 
 T['i testi del canale stanno in guida_testi'] = function()
