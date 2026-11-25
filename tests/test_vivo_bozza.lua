@@ -363,6 +363,59 @@ T['una bozza rovinata non si legge'] = function()
   end
 end
 
+-- Nessun errore di dattilo nel riquadro, e niente che la guida non sia riuscita a disegnare.
+local function senza_errore(F, cosa)
+  local r = F:riquadro()
+  vero(not (r.sezioni.Controllo or ''):find('Errore di dattilo', 1, true), (cosa or '') .. ': ' .. tostring(r.sezioni.Controllo))
+  uguale(F:lua('return require("dattilo.guida").errore_disegno()'), vim.NIL, cosa)
+end
+
+T['una bozza con un null fra le righe non si legge, e la ripresa non fallisce'] = function()
+  con(function(F)
+    briefing(F)
+    -- come per ogni riga che non è una stringa: non si legge, si parte dal briefing, senza errori
+    uguale(passo(F), 'briefing')
+    uguale(titolo(F), 'COMINCIA · somma')
+    uguale(F:lua('return require("dattilo.vivo").bozza_leggi("001-somma")'), vim.NIL)
+    senza_errore(F, 'bozza con un null')
+    vero(not F:messaggi():find('E%d+'), F:messaggi())
+    vero(not F:riquadro().sezioni.Adesso:find('salvato', 1, true), F:riquadro().sezioni.Adesso)
+  end, function(c)
+    vim.fn.mkdir(c .. '/bozze', 'p', tonumber('700', 8))
+    vim.fn.writefile({ '{"v":1,"passo":"batti","righe":["func",null,"x"]}' }, bozza_file(c))
+  end)
+end
+
+-- Le altre forme di buco: un null in testa o in mezzo non si legge. L'ultimo caso è fatto apposta: sulla
+-- lista bucata `#` rende 4, e gli elementi sono 4 (due righe vere, un buco, una riga, due buchi, una riga),
+-- quindi un controllo che confronta `#` col conteggio lo lascia passare.
+T['un null in testa o in mezzo: la bozza non si legge'] = function()
+  local casi = { testa = '[null,"func"]', mezzo = '["a",null,"b","c"]', bordo = '["a","b",null,"d",null,null,"g"]' }
+  for nome, righe in pairs(casi) do
+    con(function(F)
+      briefing(F)
+      uguale(passo(F), 'briefing', nome)
+      uguale(F:lua('return require("dattilo.vivo").bozza_leggi("001-somma")'), vim.NIL, nome)
+      senza_errore(F, nome)
+    end, function(c)
+      vim.fn.mkdir(c .. '/bozze', 'p', tonumber('700', 8))
+      vim.fn.writefile({ '{"v":1,"passo":"batti","righe":' .. righe .. '}' }, bozza_file(c))
+    end)
+  end
+end
+
+-- Una bozza giusta si riprende come prima.
+T['una bozza giusta si riprende ancora'] = function()
+  con(function(F)
+    vero(F:aspetta(function() return passo(F) == 'batti' end), tostring(passo(F)))
+    uguale(F:righe(), { 'function somma(a, b) {', '    if (ty' })
+    senza_errore(F, 'bozza giusta')
+  end, function(c)
+    vim.fn.mkdir(c .. '/bozze', 'p', tonumber('700', 8))
+    vim.fn.writefile({ vim.json.encode({ v = 1, passo = 'batti', righe = { 'function somma(a, b) {', '    if (ty' } }) }, bozza_file(c))
+  end)
+end
+
 -- La Modifica è del tempo B: oggi una bozza della Modifica non si riprende, si parte dal briefing.
 T['una bozza della Modifica oggi non si riprende'] = function()
   con(function(F)

@@ -528,8 +528,15 @@ function M.bozza_leggi(id)
   local ok, d = pcall(vim.json.decode, testo, JSON)
   if not ok or type(d) ~= 'table' or d.v ~= 1 or (d.passo ~= 'batti' and d.passo ~= 'modifica') then return nil end
   local righe = d.righe
-  if type(righe) ~= 'table' or #righe == 0 or #righe > MAX_RIGHE then return nil end
-  for _, l in ipairs(righe) do
+  if type(righe) ~= 'table' then return nil end
+  -- Un null fra le righe lascia un buco nella lista (con `luanil`), e `#` su una lista bucata può rendere
+  -- un bordo qualunque, anche il numero degli elementi: si contano gli elementi con pairs e si guarda ogni
+  -- posto da 1 a quanti. Un buco non è una stringa, come una riga che non lo è.
+  local quante = 0
+  for _ in pairs(righe) do quante = quante + 1 end
+  if quante == 0 or quante > MAX_RIGHE then return nil end
+  for i = 1, quante do
+    local l = righe[i]
     -- una riga con un a capo non si può rimettere nel buffer
     if type(l) ~= 'string' or l:find('\n', 1, true) then return nil end
   end
