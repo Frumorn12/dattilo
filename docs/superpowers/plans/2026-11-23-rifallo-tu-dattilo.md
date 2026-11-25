@@ -28,7 +28,7 @@
   **Il cancello**, dopo ogni compito e senza filtro: nessuna riga `FALLITO` né `ERRORE caricando`, e l'ultima riga è `OK <n> test`, con `n` uguale a 166 più le prove aggiunte fino lì.
 - Il dattilo di oggi, senza «Rifallo tu», non cambia. Le prove di oggi (`tests/test_*.lua`, «OK 166 test» prima del compito 1) non si modificano: le prove nuove stanno in file nuovi.
 - Codice nuovo in moduli suoi: `guida.lua`, `guida_testi.lua`, `vivo.lua`. I moduli di oggi si toccano solo nei punti nominati nei compiti, e ogni aggancio sta dietro `if M.guida`, `guida.attiva()` o `vivo.attivo()`.
-- Niente rete. Nessun comando di shell nuovo lanciato da dattilo: si lanciano solo `node` e `bwrap`, come oggi. La lista di sicurezza di `formato.lua` (righe 4-95) non si allarga.
+- Niente rete. Nessun comando di shell nuovo lanciato da dattilo: si lanciano solo `node` e `bwrap`, come oggi. I comandi `:` ammessi nelle soluzioni di `formato.lua` restano `:s`, `:sort`, `:noh` e i numeri di riga. La lista dei tasti rifiutati invece è stata **allargata** il 24/11 (compito 14, giro di correzione 1), dopo aver controllato che nessuna lezione esistente venga rifiutata (71 file, 422 righe di soluzione, 0 rifiutate): ora ferma anche la finestra dei comandi (`q:`, `q/` e `q?` fuori da una macro, `<C-f>`), il modo Ex (`gQ`), i registri d'espressione (`<C-r>=`, `"=`, `@=`, `<C-\>e`), `:@` e `:=`, e dentro un comando `:` ogni tasto speciale.
 - Le cartelle del canale si creano a 0700 e i file a 0600. dattilo non segue link fuori dalla cartella data (vedi il contratto).
 - I testi a schermo sono in italiano, esatti come nella 3.3 e nella 3.4 del progetto, e stanno tutti in `guida_testi.lua`.
 - Codice, commenti e commit in italiano.
@@ -51,7 +51,7 @@ Questa sezione è il contratto fra dattilo e la mod di Herdr. Il piano del lato 
 | `dattilo vivo --dove` | stampa una riga `{"vivo":1,"radice":"<cartella del repo dattilo>"}`. Nel tempo B `"vivo":2` | 0 |
 | `dattilo vivo <cartella> [opzioni di nvim]` | `XDG_DATA_HOME=<cartella>/dati`, `DATTILO_VIVO=<cartella>`, `LANGUAGE=it`, poi `exec nvim --clean -u <radice>/init.lua <opzioni>` | quella di nvim: 0 quando si chiude con `:q` dall'elenco |
 | `dattilo vivo` senza cartella, o con un percorso che non è una cartella | scrive `uso: dattilo vivo <cartella> [opzioni di nvim]` su stderr | 1 |
-| `dattilo vivo --prova <lezione.md>` **(tempo B)** | Controlla il formato. Rifà i tasti di ogni Modifica in un Neovim senza interfaccia, dentro `bwrap` quando c'è. Se tutto va, riscrive le righe `par:` col numero dei tasti, in modo atomico. Stampa una riga JSON. | 0: `{"ok":true,"modifiche":[{"tasti":41}]}` · 1: `{"ok":false,"motivo":"…"}` (lezione rifiutata) · 2: `{"ok":false,"motivo":"uso: dattilo vivo --prova <lezione.md>"}` (uso sbagliato o file illeggibile) |
+| `dattilo vivo --prova <lezione.md>` **(tempo B)** | Controlla il formato. Rifà i tasti di ogni Modifica in un Neovim senza interfaccia, **solo dentro `bwrap`**: i tasti di una lezione non si eseguono mai fuori dalla sandbox, e senza sandbox (`bwrap` manca o non funziona, o c'è `DATTILO_SANDBOX=0`) il comando esce subito con 2 senza provare niente, prima di leggere il formato. Il Neovim figlio vede la cartella della lezione in sola lettura e scrive solo in una sua cartella temporanea; il verdetto lo decide il processo di fuori, che confronta il testo lasciato dal figlio con l'obiettivo. Se tutto va, riscrive le righe `par:` col numero dei tasti, in modo atomico. Tetto di 9 s. Stampa una riga JSON. | 0: `{"ok":true,"modifiche":[{"tasti":41}]}` · 1: `{"ok":false,"motivo":"…"}` (lezione rifiutata: formato, tasti non ammessi, tasti che non arrivano all'obiettivo, tempo scaduto) · 2: `{"ok":false,"motivo":"…"}` (lezione non giudicata: uso sbagliato, file illeggibile o link, con `uso: dattilo vivo --prova <lezione.md>`; `senza sandbox i tasti di una lezione non si provano`; `la sandbox non è partita: …`; `non riesco a riscrivere il par: …`; `non riesco a creare la cartella temporanea della prova: …`) |
 | dattilo vecchio, senza `vivo` | `nvim` riceve `vivo --dove` e rifiuta con «Unknown option argument» | 1 |
 
 Come la mod distingue i casi:
@@ -59,7 +59,7 @@ Come la mod distingue i casi:
 - uscita 0 con `vivo ≥ 1` vuol dire che c'è; con `vivo ≥ 2` sa anche fare `--prova`;
 - ogni altra cosa vuol dire un dattilo vecchio.
 
-`--prova` riceve un file temporaneo che non finisce in `.md`, per esempio `lezioni/003-x.md.4242`. Il nome non conta per la prova. Se l'uscita è 0, la mod gli dà il nome finale; se è 1, riscrive la lezione senza `## Modifica`. Tempo massimo consigliato: 10 s.
+`--prova` riceve un file temporaneo che non finisce in `.md`, per esempio `lezioni/003-x.md.4242`. Il nome non conta per la prova. Se l'uscita è 0, la mod gli dà il nome finale; se è 1, riscrive la lezione senza `## Modifica`; se è 2 con «senza sandbox i tasti di una lezione non si provano», la lezione non è né approvata né rifiutata ma la Modifica non si offre, e la mod scrive la lezione senza `## Modifica`: resta il Batti. Negli altri casi dell'uscita 2 (bwrap che non parte, par che non si riscrive, uso sbagliato) la lezione non è stata giudicata: una Modifica non provata non si offre mai. Tempo massimo consigliato: 10 s; dattilo ferma la prova a 9 s.
 
 ### L'albero
 
