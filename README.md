@@ -89,6 +89,63 @@ esegue il suo codice: `compila` (es. `cc`), `comando` (es. `node main.js`) o
   con il sistema in sola lettura e la home nascosta; scrive solo nella sua cartella di lavoro.
   Senza `bwrap` gira normalmente: in quel caso importa pacchetti solo da persone di cui ti fidi.
 
+## Rifallo tu (`dattilo vivo`)
+
+**Cos'è.** Mentre Claude Code lavora in Herdr, la mod «Dal vivo» prepara una lezione da ogni
+funzione JavaScript che Claude cambia, e dattilo la apre in un pannello accanto al suo terminale:
+la riscrivi a mano mentre lui va avanti. Le lezioni nuove vanno in coda («2 nuove») e quella che
+stai scrivendo non cambia mai sotto le dita. È il dattilo di sempre, con Neovim vero, ma pensato
+per chi non conosce Vim.
+
+```sh
+dattilo vivo <cartella>    # apre le lezioni di quella cartella, senza home né menu
+dattilo vivo --dove        # una riga JSON con la versione e la cartella di dattilo: la mod la usa per sapere se c'è
+```
+
+La cartella esiste già: la crea la mod, che ci scrive anche le lezioni. dattilo la guarda ogni
+mezzo secondo, quindi una lezione nuova entra in coda entro un secondo da quando è scritta; se
+non ce ne sono, aspetta e apre da sola la prima che arriva. Gli argomenti dopo la cartella vanno a Neovim.
+I progressi e i file di lavoro stanno dentro la cartella, in `dati/`, non in `~/.local/share/dattilo`.
+
+**La guida è sempre accesa.** Il riquadro in alto dice, in ogni schermata e in ogni momento, che
+tasto premere adesso e cosa fa, come se fosse sempre la prima volta: non serve sapere niente di
+Vim. In **Adesso** c'è il prossimo tasto (per esempio «‹i›: entri in scrittura»), in **Comandi**
+quelli che valgono lì, in **Controllo** l'esito di `:w` e gli avvisi di dattilo, mai nella riga dei
+messaggi. Se finisci in un posto di Vim che non conosci (una selezione, la riga dei comandi, una
+finestra in più), il riquadro diventa rosso e dice dov'è e come tornare.
+
+**Comandi.** Si scrivono in minuscolo, come `:q`, e valgono solo con `dattilo vivo`:
+
+| Comando | Cosa fa |
+|---|---|
+| `:salta` | lascia la lezione, la segna come saltata se non è fatta e apre la prossima da fare; se non ce n'è, aspetta |
+| `:ultima` | apre l'ultima lezione non fatta, cioè quella della funzione cambiata per ultima; se non c'è, o è già questa, lo dice nel riquadro |
+| `:elenco` | apre l'elenco delle lezioni (✓ fatta, ▸ da fare, «nuova», «saltata»); `j` `k` per scegliere, `Invio` per aprire |
+
+`:q` in una lezione torna all'elenco, e dall'elenco chiude dattilo.
+
+**La bozza.** Il testo che scrivi in Batti si salva da solo in `bozze/<id>.json`: al massimo ogni
+2 secondi mentre scrivi, quando esci dalla scrittura, quando cambi lezione e quando il pannello si
+chiude, anche di colpo. Riaprendo la lezione si torna dritti a Batti con il testo di prima e la
+guida dice «Ripreso». La bozza sparisce quando la lezione è fatta.
+
+**Dove stanno i file**, tutti dentro `<cartella>`:
+
+```
+<cartella>/
+  indice.json               la mod; dattilo non lo legge
+  vuoi.json                 la mod chiede a dattilo di aprire una lezione
+  stato.json                dattilo dice alla mod dov'è la persona
+  bozze/<id>.json           il testo di Batti salvato
+  dati/                     XDG_DATA_HOME di dattilo
+    dattilo/pacchetti/rifallo/pacchetto.json
+    dattilo/pacchetti/rifallo/lezioni/<id>.md     una lezione per file, nel formato dei pacchetti
+    dattilo/lavoro/rifallo/<id>/<file>            il file controllato con node --check
+    dattilo/progressi.json                        chiave "rifallo/<id>"
+```
+
+Il formato dei file e le regole sono nel progetto, `docs/superpowers/specs/2026-11-23-rifallo-tu-design.md`.
+
 ## Requisiti
 
 - Neovim 0.12 o più recente
@@ -134,6 +191,7 @@ Progetto e piano: `docs/superpowers/specs/` e `docs/superpowers/plans/`.
 nvim --clean --headless -l tests/run.lua   # test unitari
 bash tests/e2e.sh                          # partita vera in tmux
 bash tests/rete/prova-rete.sh              # scambio tra due container su una rete finta + attacchi
+bash tests/vivo_collaudo.sh                # Rifallo tu (dattilo vivo) in tmux, con i tasti veri
 ```
 
 ## Licenza

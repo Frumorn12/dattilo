@@ -597,7 +597,7 @@ Il contratto completo, campo per campo, con i casi dei file a metà, rotti o spa
   2. aspetta `PAUSA`, come oggi;
   3. **nuovo:** per i passi recenti senza riga `lezione`, estrae il codice da battere dal file com'è adesso sul disco, e lo controlla con `node --check` (5.4). Nel tempo B estrae anche il codice di prima;
   4. chiama Haiku **una volta**. Per le modifiche con codice da battere, il prompt contiene quel codice e chiede anche i campi della lezione (5.6);
-  5. scrive le righe `spiega` come oggi, e **subito dopo** le lezioni e le righe `lezione`. Nel tempo B, prima di dare il nome finale a una lezione con Modifica, lancia `dattilo vivo --prova` sul file temporaneo. Se esce con 1, riscrive la lezione senza Modifica.
+  5. scrive le righe `spiega` come oggi, e **subito dopo** le lezioni e le righe `lezione`. Nel tempo B, prima di dare il nome finale a una lezione con Modifica, lancia `dattilo vivo --prova` sul file temporaneo. Se esce con 1, o con 2 «senza sandbox i tasti di una lezione non si provano» (niente `bwrap`: i tasti non si eseguono mai fuori dalla sandbox), riscrive la lezione senza Modifica, e resta il Batti.
 
   `daFare(passi, adesso, haiku)` (dalvivo-spiega.mjs:78-84) diventa `daFare(passi, adesso, haiku, rifallo)`, e restituisce anche `lezione`: i passi recenti senza riga `lezione` e con un'estensione JavaScript. Il ciclo continua finché c'è qualcosa in una delle tre liste.
 
@@ -887,7 +887,7 @@ Per le modifiche che hanno anche un «Codice di prima», dentro "lezione" aggiun
   - nei `tasti` un ` | ` diventa `<Bar>`, così la riga di `### Tasti` si legge;
   - se qualcosa non va, la `modifica` vale `null`, e la lezione esce senza Modifica.
 
-  Se il controllo passa, la parola finale spetta a `dattilo vivo --prova`, che rifà i tasti in un Neovim senza interfaccia.
+  Se il controllo passa, la parola finale spetta a `dattilo vivo --prova`, che rifà i tasti in un Neovim senza interfaccia, dentro la sandbox. Senza sandbox non li rifà (esce con 2) e la lezione esce senza Modifica.
 - Un campo della lezione rotto non tocca `titolo`/`spiega`/`dipiu`. Una `lezione` illeggibile vuol dire testi di base. **La spiegazione del fumetto non si perde mai per colpa della lezione.**
 - Le prove di oggi (dalvivo-logica.test.mjs) restano valide: senza `codici` non c'è `lezione`.
 
@@ -918,7 +918,7 @@ Per le modifiche che hanno anche un «Codice di prima», dentro "lezione" aggiun
 
 **Si accorge che dattilo c'è.** Una volta per vista, al primo clic, la mod lancia `exec("dattilo", ["vivo", "--dove"], { timeout: 10000 })`:
 - se `exec` rifiuta, dattilo non è nel `PATH`: «manca»;
-- se esce con 0 e stampa `{"vivo":1,"radice":"/home/…/dattilo"}`: c'è, e si tiene `radice`. Con `"vivo":2` sa anche fare `--prova`, cioè il tempo B. Con `"vivo":1` l'aiutante non scrive Modifiche;
+- se esce con 0 e stampa `{"vivo":1,"radice":"/home/…/dattilo"}`: c'è, e si tiene `radice`. Con `"vivo":2` sa anche fare `--prova`, cioè il tempo B. Con `"vivo":1` l'aiutante non scrive Modifiche. Anche con `"vivo":2`, se `--prova` esce con 2 «senza sandbox i tasti di una lezione non si provano» (su quella macchina `bwrap` non c'è o non funziona), la lezione esce senza Modifica;
 - altrimenti è un dattilo vecchio. Oggi `bin/dattilo` manderebbe `vivo --dove` a `exec nvim` (bin/dattilo:22), e Neovim esce subito con 1 per l'opzione sconosciuta: l'ho provato oggi con `nvim --clean -u NONE vivo --dove`, che esce con 1 e scrive «Unknown option argument».
 
 Durante `checking()` non si lancia niente. Su Windows il tasto non esiste, e quindi neanche il controllo.
@@ -1062,10 +1062,21 @@ Oggi niente la accende fuori da `vivo`: il dattilo di oggi non cambia.
 
   Una lezione senza queste due cose si legge esattamente come oggi.
 - **`lua/dattilo/controlla.lua`** (righe 27-40): `prova_soluzione` diventa `M.prova_soluzione(m) → righe|nil, errore`. Cambia solo il nome.
-- **`lua/dattilo/cli.lua`**: `vivo-prova <lezione.md>`. Gira nella sandbox quando c'è, come `controlla` (cli.lua:146-154), con la cartella del file in scrittura. Per ogni Modifica rifà i tasti con `prova_soluzione` e confronta il risultato con l'obiettivo. Se tutto va, riscrive le righe `par:` col numero di `conta_tasti`, in modo atomico. Le uscite:
+- **`lua/dattilo/cli.lua`**: `vivo-prova <lezione.md>`. La lezione la scrive un modello, quindi i suoi tasti sono testo non fidato: **girano solo dentro la sandbox**, e senza `bwrap` il comando non prova niente. Il lavoro è diviso fra due processi:
+  - il processo di fuori controlla l'uso e che il file sia un file normale (un link non si segue), poi `compila.sandbox()`: se è falso (`bwrap` manca o non funziona, o `DATTILO_SANDBOX=0`) esce subito con 2, senza leggere il formato e senza provare niente;
+  - il Neovim figlio (`vivo-prova-figlio`) gira dentro `bwrap` come `controlla` (cli.lua:146-154), con la cartella della lezione in **sola lettura** e una cartella temporanea sua, dove lascia il testo che ogni Modifica ha alla fine dopo aver rifatto i tasti con `prova_soluzione`. Lanciato a mano fuori dalla sandbox si rifiuta;
+  - il **verdetto lo decide il processo di fuori**: legge quel file, confronta il testo con l'obiettivo e conta i tasti con `conta_tasti` dal testo della lezione. Se tutto va, riscrive le righe `par:` in modo atomico, con un file nuovo che non finisce in `.md` e il modo di prima. Quello che il figlio stampa non conta.
+
+  Il tetto è 9 s, e oltre la prova si ferma con tutto quello che ha lanciato. Lo stdout è sempre una riga sola. Le uscite:
   - **0**, con `{"ok":true,"modifiche":[{"tasti":41}]}`;
-  - **1**, lezione rifiutata, con `{"ok":false,"motivo":"…"}`;
-  - **2**, uso sbagliato o file illeggibile, con `{"ok":false,"motivo":"uso: dattilo vivo --prova <lezione.md>"}`.
+  - **1**, lezione rifiutata, con `{"ok":false,"motivo":"…"}`: formato rotto, tasti non ammessi dalla lista di sicurezza, tasti che non arrivano all'obiettivo, tempo scaduto;
+  - **2**, lezione non giudicata, con `{"ok":false,"motivo":"…"}`:
+    - uso sbagliato, file illeggibile o link, con `uso: dattilo vivo --prova <lezione.md>`;
+    - **senza sandbox**, con `senza sandbox i tasti di una lezione non si provano`: la mod scrive la lezione senza `## Modifica`, e resta il Batti;
+    - `bwrap` che non parte, con `la sandbox non è partita: …`;
+    - il par che non si riesce a riscrivere, con `non riesco a riscrivere il par: …`, o la cartella temporanea che non si crea, con `non riesco a creare la cartella temporanea della prova: …`.
+
+  **La lista di sicurezza** dei tasti di `formato.lua` (`soluzione_non_ammessa`) è stata **allargata** il 24/11: ferma anche la finestra dei comandi (`q:`, `q/` e `q?` fuori da una macro, `<C-f>`), il modo Ex (`gQ`), i registri d'espressione (`<C-r>=`, `"=`, `@=`, `<C-\>e`), `:@` e `:=`, e dentro un comando `:` ogni tasto speciale. I comandi `:` ammessi restano `:s`, `:sort`, `:noh` e i numeri di riga. Nessuna delle lezioni esistenti viene rifiutata (71 file, 422 righe di soluzione). La lista non basta da sola: la sandbox è la difesa vera.
 - **`lua/dattilo/esercizio.lua`** (righe 126-136): l'apertura della finestra OBIETTIVO diventa `M.finestra_obiettivo(e)`, così la guida la può riaprire dopo ‹Ctrl-w› ‹o›. È solo codice spostato.
 - **`guida.lua`**: la Modifica guidata (G12, frasi della 3.3). I tasti premuti li conta un osservatore `vim.on_key` che restituisce sempre `nil`: guarda e non scarta mai niente. I tasti si mostrano dopo 15 s fermi, con `vim.uv.now()`, o oltre il doppio della soluzione.
 - **`vivo.lua`**: una bozza con `passo: "modifica"` riapre la lezione direttamente alla Modifica, ripartendo dal codice di partenza. È breve, e il testo di Batti è già fatto.
@@ -1177,7 +1188,7 @@ Oggi niente la accende fuori da `vivo`: il dattilo di oggi non cambia.
 13. **La guida è lunga.** Il riquadro arriva a 10 righe interne più il bordo. In un pannello basso (meno di 24 righe) copre metà del codice. Le sezioni della lezione («Riga», «Blocco») si accorciano per prime, ma «Adesso» e «Comandi» no.
 14. **`LANGUAGE=it`.** Cambia anche la lingua dei messaggi dei programmi che dattilo lancia e che usano gettext. Oggi lancia solo `node`, che gettext non lo usa, e `bwrap`, che non scrive niente quando funziona.
 15. **Righe lunghe.** dattilo non manda a capo (schermo.lua:74). In un pannello largo metà schermo una riga di 140 caratteri scorre di lato mentre si scrive. Si può guardare nel banco.
-16. **macOS.** Dovrebbe andare: `bash`, `nvim`, `node`, niente `bwrap`. Non provato.
+16. **macOS.** Dovrebbe andare: `bash`, `nvim`, `node`, niente `bwrap`. Non provato. Nel tempo B, senza `bwrap`, `dattilo vivo --prova` esce con 2 e le lezioni non hanno la Modifica: resta il Batti.
 
 ---
 
@@ -1210,13 +1221,13 @@ Oggi niente la accende fuori da `vivo`: il dattilo di oggi non cambia.
   - il lucchetto occupato.
   - Se `dattilo` c'è nel `PATH` (altrimenti la prova è saltata):
     - `dattilo controlla --tip <pacchetto> <id>` non stampa nessuna riga «✗» sulle lezioni scritte;
-    - nel tempo B, `dattilo vivo --prova` esce con 0 sulla lezione dell'esempio della 5.5 e con 1 se un pezzo di tasti è sbagliato.
+    - nel tempo B, `dattilo vivo --prova` esce con 0 sulla lezione dell'esempio della 5.5 e con 1 se un pezzo di tasti è sbagliato (senza `bwrap` esce con 2 «senza sandbox…», e queste due prove si saltano).
 - **`prove/dalvivo-spiega.test.mjs`:**
   - con `rifallo: true` e un `claude` finto (come prove/hook-cronista.test.mjs:421-444) che risponde coi campi `lezione`, si ottengono la riga `spiega`, la lezione col testo di Haiku e la riga `lezione`, e **una** chiamata sola;
   - con Haiku spento, lezione coi testi di base e nessuna chiamata;
   - con `rifallo: false`, nessuna lezione;
   - con un file `.ts`, riga `lezione` con `stato: "no"`;
-  - nel tempo B, con un `dattilo` finto che esce con 1 a `--prova`, la lezione esce senza `## Modifica`.
+  - nel tempo B, con un `dattilo` finto che esce con 1 a `--prova`, la lezione esce senza `## Modifica`; lo stesso con uno che esce con 2 e `senza sandbox i tasti di una lezione non si provano`.
 - **Il controllo della mod** (`node prove/controlla-dalvivo.mjs`): `prove/controlla-dalvivo-main.js` disegna in più:
   - la finestrella con «Rifallo tu», «Rifallo tu ···» e «2 nuove» in testata;
   - la scheda con «Di più · Rifallo tu» e con la riga grigia di un `.ts`;
