@@ -142,13 +142,14 @@ local function finisci(nome, riga, pos)
   return T.f('cmd_finisci', table.concat(tasti, ' '), nome, spiega(nome, pos))
 end
 
--- Dalla spiegazione :q e :qa lasciano la lezione, e la lezione si segna come fatta solo al riepilogo
--- (lezione.fine): uscendo da qui non conta, e la frase lo dice prima dell'Invio. In una finestra in più
--- :q chiude solo quella (nessuna frase), ma :qa chiude dattilo lo stesso.
+-- Dalla spiegazione :q, :qa, :salta e :ultima lasciano la lezione, e la lezione si segna come fatta solo al
+-- riepilogo (lezione.fine): uscendo da qui non conta (:salta la segna «saltata»), e la frase lo dice prima
+-- dell'Invio. In una finestra in più :q chiude solo quella (nessuna frase), ma :qa chiude dattilo lo stesso.
 local function perde_il_fatto(nome, pos)
   local s = lezione().s
   if not s or s.passo ~= 'spiegazione' then return false end
   if SINONIMI_QA[nome] then return true end -- :qa chiude dattilo anche da una finestra in più
+  if nome == 'salta' or nome == 'ultima' then return true end -- aprono un'altra lezione
   return (SINONIMI_Q[nome] and pos ~= 'in_piu' and require('dattilo.stato').schermo ~= 'home') or false
 end
 

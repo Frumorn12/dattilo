@@ -497,12 +497,43 @@ T['la spiegazione: :salta e :ultima sono comandi noti e «Comandi» li scrive'] 
     local C = riquadro_fermo(F).sezioni.Comandi
     uguale(C, TT.comandi_spiegazione)
     vero(C:find('‹:salta› ‹Invio›', 1, true) and C:find('‹:ultima› ‹Invio›', 1, true), C)
+    -- comandi noti (con la frase di B2: dalla spiegazione la lezione non conta come fatta, vedi sotto)
     F:input(':salta')
-    nel_posto(F, atteso('cmd_noto', 'salta', TT.spiega_comando.salta))
+    nel_posto(F, atteso('cmd_noto_spiegazione', 'salta', TT.spiega_comando.salta))
     F:input('<Esc>:ultima')
-    nel_posto(F, atteso('cmd_noto', 'ultima', TT.spiega_comando.ultima))
+    nel_posto(F, atteso('cmd_noto_spiegazione', 'ultima', TT.spiega_comando.ultima))
     F:input('<Esc>')
     uguale(passo(F), 'spiegazione')
+  end)
+end
+
+-- Anche :salta e :ultima lasciano la lezione (:salta la segna «saltata», non fatta): dalla spiegazione la
+-- frase lo dice prima dell'Invio, come per :q e :qa.
+T['B2: nella spiegazione :salta e :ultima dicono che la lezione non conta come fatta'] = function()
+  local c = M.cartella()
+  con({ cartella = c }, function(F)
+    alla_spiegazione(F)
+    F:input(':salta')
+    nel_posto(F, atteso('cmd_noto_spiegazione', 'salta', TT.spiega_comando.salta))
+    -- a 80×24 la frase sta intera nel riquadro, senza «…»
+    F:lua('vim.o.columns, vim.o.lines = ...', 80, 24)
+    F:aspetta(function() local A = F:a_schermo() return A ~= nil and A.finisce.Adesso ~= nil and A.finisce.Adesso:find('la finisci', 1, true) ~= nil end)
+    local A = F:a_schermo()
+    vero(A.finisce.Adesso:sub(-3) ~= '…' and A.finisce.Comandi:sub(-3) ~= '…', vim.inspect(A.righe))
+    uguale(A.alto, #A.righe, 'la finestra non mostra tutto il riquadro')
+    F:input('<Esc>')
+    F:aspetta(function() return F:adesso() == TT.spiegazione end)
+    uguale(F:adesso(), TT.spiegazione)
+    F:input(':ultima')
+    nel_posto(F, atteso('cmd_noto_spiegazione', 'ultima', TT.spiega_comando.ultima))
+    F:input('<Esc>')
+    F:aspetta(function() return F:adesso() == TT.spiegazione end)
+    uguale(passo(F), 'spiegazione')
+    -- scritto per intero e con l'Invio fa quello che dice: apre la prossima, e la prima non è segnata come fatta
+    F:input(':salta<CR>')
+    vero(F:aspetta(function() return F:lua('local s = require("dattilo.lezione").s return s and s.L.id') == '002-saluto' end),
+      'lezione: ' .. tostring(F:lua('local s = require("dattilo.lezione").s return s and s.L.id')))
+    uguale(progressi(c)['rifallo/001-somma'], nil)
   end)
 end
 
