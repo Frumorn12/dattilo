@@ -364,11 +364,11 @@ T['una soluzione che non finisce mai viene fermata dal tetto'] = con_sandbox(fun
   uguale(leggi_byte(f), testo)
 end)
 
-T['vivo --dove ora dice 2'] = function()
+T['vivo --dove dice 1 finché la Modifica non ha la sua guida'] = function()
   local _, env = ambiente()
   local r = vim.system({ RADICE .. '/bin/dattilo', 'vivo', '--dove' }, { env = env, text = true }):wait()
   uguale(r.code, 0, r.stderr)
-  uguale(vim.json.decode(r.stdout), { vivo = 2, radice = RADICE })
+  uguale(vim.json.decode(r.stdout), { vivo = 1, radice = RADICE })
 end
 
 T['la riscrittura del par è atomica: un file nuovo che prende il posto, non un file riscritto sul posto'] = function()
@@ -445,7 +445,7 @@ end)
 -- Le prove che hanno bisogno dei tasti eseguiti saltano dove bwrap non c'è; quelle sull'uso e sul rifiuto no.
 local SENZA = {
   ['file che non c è o nessun argomento: 2'] = true, ['un file che è un link: 2, e il link resta com\'è'] = true,
-  ['vivo --dove ora dice 2'] = true, ['vivo-prova-figlio a mano, fuori dalla sandbox: si rifiuta e non fa niente'] = true, ['senza sandbox: 2 e niente eseguito'] = true,
+  ['vivo --dove dice 1 finché la Modifica non ha la sua guida'] = true, ['vivo-prova-figlio a mano, fuori dalla sandbox: si rifiuta e non fa niente'] = true, ['senza sandbox: 2 e niente eseguito'] = true,
   ['senza sandbox anche i tasti sbagliati e le lezioni rotte danno 2, non un verdetto'] = true,
   ['un bwrap che non funziona vale come niente sandbox: 2 e niente eseguito'] = true, ['bwrap che non c è: 2 e niente eseguito'] = true,
 }

@@ -429,9 +429,11 @@ local function comando_vivo_prova(args)
   return esci(prova_lezione(vim.fn.fnamemodify(file, ':p'), testo, st))
 end
 
--- dattilo vivo --dove: la mod chiede se c'è, e dove sta. vivo = 2: sa anche fare --prova
+-- dattilo vivo --dove: la mod chiede se c'è, e dove sta. vivo = 2 quando c'è la Modifica guidata (compito 15): finché
+-- la Modifica non ha la sua guida dice 1, così la mod non scrive Modifiche che dattilo mostrerebbe senza guida.
+-- `vivo --prova` c'è già e resta com'è.
 local function comando_vivo_dove()
-  scrivi(vim.json.encode({ vivo = 2, radice = radice }))
+  scrivi(vim.json.encode({ vivo = 1, radice = radice }))
   return 0
 end
 
