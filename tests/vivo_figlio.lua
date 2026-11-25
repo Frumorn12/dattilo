@@ -26,6 +26,8 @@ function M.avvia(o)
   local tmp = vim.fn.tempname()
   vim.fn.mkdir(tmp, 'p', tonumber('700', 8))
   vim.fn.mkdir(tmp .. '/home', 'p', tonumber('700', 8))
+  -- anche la cartella temporanea di Neovim del figlio sta qui dentro: si cancella tutto alla chiusura
+  vim.fn.mkdir(tmp .. '/tmp', 'p', tonumber('700', 8))
   -- ambiente del figlio: quello del padre, ma con HOME nostra e senza DATTILO_VIVO se non serve
   local env = vim.fn.environ()
   env.DATTILO_VIVO = nil
@@ -34,6 +36,7 @@ function M.avvia(o)
   env.XDG_CONFIG_HOME = tmp .. '/config'
   env.XDG_STATE_HOME = tmp .. '/stato'
   env.XDG_CACHE_HOME = tmp .. '/cache'
+  env.TMPDIR = tmp .. '/tmp'
   env.LANGUAGE = 'it'
   if o.vivo then env.DATTILO_VIVO = o.cartella end
   local canale = vim.fn.jobstart(
@@ -205,6 +208,8 @@ function F:chiudi()
     pcall(vim.uv.kill, self.pid, 'sigkill')
     vim.fn.jobwait({ self.canale }, 2000)
   end
+  -- il figlio è morto: la sua cartella (casa, XDG, cartella temporanea di Neovim) non serve più
+  vim.fn.delete(self.tmp, 'rf')
 end
 
 return M

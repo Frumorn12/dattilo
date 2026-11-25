@@ -1,10 +1,12 @@
 -- dattilo: avvio dell'app dentro Neovim pulito.
 local M = {}
 
-function M.abbreviazioni()
+-- `con_spazi`: la riga dei comandi si legge senza gli spazi davanti (`: q`); lo vuole la guida di «Rifallo tu»
+function M.abbreviazioni(con_spazi)
+  local riga = con_spazi and 'trim(getcmdline())' or 'getcmdline()'
   local voci = { { 'q', 'DattiloEsci' }, { 'q!', 'DattiloEsci' }, { 'wq', 'DattiloEsci' }, { 'x', 'DattiloEsci' }, { 'e!', 'DattiloRicomincia' } }
   for _, a in ipairs(voci) do
-    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && getcmdline() ==# '%s') ? '%s' : '%s'", a[1], a[1], a[2], a[1]))
+    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && %s ==# '%s') ? '%s' : '%s'", a[1], riga, a[1], a[2], a[1]))
   end
 end
 

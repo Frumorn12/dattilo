@@ -12,6 +12,12 @@ function _G.uguale(a, b, msg)
 end
 function _G.vero(c, msg) if not c then error(msg or 'condizione falsa', 2) end end
 
+-- I processi che le prove lanciano (dattilo vivo, nvim) hanno la loro cartella temporanea dentro quella di
+-- questo lancio: va via insieme a lei, in fondo (vedi sotto).
+local tmp_lancio = vim.fn.fnamemodify(vim.fn.tempname(), ':h')
+vim.fn.mkdir(tmp_lancio .. '/figli', 'p', tonumber('700', 8))
+vim.env.TMPDIR = tmp_lancio .. '/figli'
+
 local corrente, finito = nil, false
 vim.api.nvim_create_autocmd('VimLeavePre', { callback = function()
   if not finito then io.stdout:write('USCITA INATTESA di Neovim durante: ' .. tostring(corrente) .. '\n') end
@@ -42,6 +48,9 @@ for _, f in ipairs(files) do
   end
 end
 finito = true
+-- Con os.exit Neovim non cancella la sua cartella temporanea, e le prove ci mettono le copie delle
+-- fixture e le cartelle dei figli: la cancelliamo noi (solo se è fatta come <tmp>/nvim.<utente>/<sigla>).
+if tmp_lancio:match('/nvim%.[^/]+/[^/]+$') then vim.fn.delete(tmp_lancio, 'rf') end
 if falliti > 0 then print(falliti .. ' falliti su ' .. n) os.exit(1) end
 print('OK ' .. n .. ' test')
 os.exit(0)
