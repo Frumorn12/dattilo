@@ -145,10 +145,18 @@ if [[ " $* " == *" vivo-prova-figlio "* ]]; then touch "$PROVA_MARCATORE"; exit 
 exec @NVIM@ "$@"
 ]=]
 
+-- Un nome di cartella temporanea senza «q» davanti a «/» o «:»: i vettori delle prove scrivono il percorso del marcatore
+-- dentro i tasti, e la lista rifiuta q/ e q: (la finestra dei comandi) anche dentro un percorso.
+function A.tempname_pulita()
+  local t = vim.fn.tempname()
+  while t:find('q[/:?]') do t = vim.fn.tempname() end
+  return t
+end
+
 -- Una cartella di appunti e un PATH con un bwrap e un nvim finti in testa. Dà le variabili d'ambiente da aggiungere.
 function A.finti(opzioni)
   opzioni = opzioni or {}
-  local base = vim.fn.tempname()
+  local base = A.tempname_pulita()
   vim.fn.mkdir(base .. '/bin', 'p')
   vim.fn.mkdir(base .. '/appunti', 'p')
   local reale = vim.fn.exepath('bwrap')

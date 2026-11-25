@@ -183,6 +183,8 @@ end
 -- dell'ambiente: niente sandbox, bwrap che non parte, il par che non si riesce a scrivere).
 local USO_PROVA = 'uso: dattilo vivo --prova <lezione.md>'
 local MOTIVO_SENZA_SANDBOX = 'senza sandbox i tasti di una lezione non si provano'
+-- Un byte che UTF-8 non ha (0x80 0xFD 0x68 è <Cmd>) in una riga di codice, eseguita da un registro, torna tasto speciale
+local MOTIVO_NON_UTF8 = 'la lezione contiene byte che non sono UTF-8 valido: non si prova (in un registro potrebbero tornare tasti speciali di Neovim)'
 local TETTO_PROVA = 9000 -- ms: la mod aspetta al massimo 10 s, e una soluzione che non finisce va fermata prima
 local ATTESA_DOPO_IL_TETTO = 500 -- ms: dopo il SIGKILL, quanto aspettare che il sistema chiuda il processo
 local MAX_RISULTATO = 4 * 1024 * 1024 -- byte: quanto può essere grande il file che il figlio lascia
@@ -331,6 +333,7 @@ local function giudica(assoluto, testo, st, L, cartella)
 end
 
 local function prova_lezione(assoluto, testo, st)
+  if not require('dattilo.formato').utf8_valido(testo) then return 1, json_no(MOTIVO_NON_UTF8) end
   local L, err = require('dattilo.formato').lezione(testo, vim.fn.fnamemodify(assoluto, ':t'), 1)
   if not L then
     local parti = {}
@@ -347,6 +350,39 @@ local function prova_lezione(assoluto, testo, st)
   return code, riga
 end
 
+-- La guardia del figlio, messa prima dei tasti: la lista di formato.lua guarda il testo dei tasti, ma un comando può nascere
+-- da un registro (@a dopo yy, @.), da !{movimento} o da una mappatura di Neovim, e lì nei tasti non c'è nessun «:».
+-- Ogni riga dei comandi che sta per partire passa dalla stessa lista (più stretta, vedi comando_che_parte_non_ammesso) e
+-- se non la passa si annulla; le righe di tipo = @ > - (espressioni, input, debug) si annullano sempre (tranne
+-- reg_recorded(), che è di Neovim per Q in Visual-linea). K e gx lanciano programmi, gf apre il file sotto il cursore
+-- (magari la lezione stessa: ci si copierebbe l'obiettivo): in Normal e Visual non fanno niente.
+-- Ritorna la lista dei comandi fermati.
+function M.proteggi_figlio()
+  local formato = require('dattilo.formato')
+  local fermati = {}
+  vim.api.nvim_create_autocmd('CmdlineLeave', {
+    callback = function()
+      if vim.v.event.abort then return end
+      local tipo, riga = vim.fn.getcmdtype(), vim.fn.getcmdline()
+      local motivo
+      if tipo == ':' then motivo = formato.comando_che_parte_non_ammesso(riga)
+      elseif tipo == '=' then -- l'unica espressione ammessa è quella della mappatura di Neovim per Q in Visual-linea
+        if riga ~= 'reg_recorded()' then motivo = 'espressione' end
+      elseif tipo ~= '/' and tipo ~= '?' then motivo = 'riga dei comandi di tipo ' .. tipo end
+      if motivo then
+        fermati[#fermati + 1] = tipo .. riga
+        vim.cmd('let v:event.abort = v:true')
+      end
+    end,
+  })
+  for _, modo in ipairs({ 'n', 'x' }) do
+    for _, tasto in ipairs({ 'K', 'gx', 'gf', 'gF', '<C-w>f', '<C-w><C-f>', '<C-w>F', '<C-w>gf', '<C-w>gF' }) do
+      vim.keymap.set(modo, tasto, '<Nop>')
+    end
+  end
+  return fermati
+end
+
 -- Il figlio: gira dentro la sandbox, rifà i tasti di ogni Modifica e lascia in `cartella` il testo che il buffer ha alla fine.
 -- Non decide niente e non stampa niente sullo stdout.
 local function comando_figlio(args)
@@ -359,13 +395,22 @@ local function comando_figlio(args)
     io.stderr:write('vivo-prova-figlio: si lancia solo da dattilo vivo --prova, dentro la sandbox\n')
     return 2
   end
+  -- ricontrollato qui: il file può essere cambiato fra la lettura del padre e questa
+  if not require('dattilo.formato').utf8_valido(testo) then io.stderr:write('vivo-prova-figlio: la lezione non è UTF-8 valido\n') return 1 end
   local L = require('dattilo.formato').lezione(testo, vim.fn.fnamemodify(file, ':t'), 1)
   if not L then io.stderr:write('vivo-prova-figlio: la lezione non si legge\n') return 1 end
   local controlla = require('dattilo.controlla')
   local risultati = {}
+  local fermati = M.proteggi_figlio()
   for i, m in ipairs(L.modifiche) do
+    local prima = #fermati
     local righe, e = controlla.prova_soluzione(m)
-    risultati[i] = righe and { righe = righe } or { errore = tostring(e) }
+    if #fermati > prima then
+      -- un comando fuori lista è stato annullato: la soluzione non è quella che la lista ammette, qualunque cosa sia uscita
+      risultati[i] = { errore = 'un comando non ammesso è stato fermato mentre giravano i tasti: ' .. fermati[prima + 1] }
+    else
+      risultati[i] = righe and { righe = righe } or { errore = tostring(e) }
+    end
   end
   local f = assert(io.open(cartella .. '/risultato.json', 'wb'))
   f:write(vim.json.encode(risultati))

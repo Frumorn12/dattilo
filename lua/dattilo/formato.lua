@@ -54,9 +54,86 @@ end
 local ESTENSIONI_CODICE = { c = true, js = true, mjs = true, cjs = true }
 
 -- Le soluzioni le esegue il verificatore, e `dattilo vivo --prova` le esegue su lezioni scritte da un modello (testo
--- non fidato): dei comandi ':' sono ammessi solo questi (più i numeri di riga).
--- Questa lista è una prima difesa e non basta da sola: i tasti girano comunque dentro bwrap. Si guardano i tasti veri
+-- non fidato). La lista è a negazione di default: passa solo quello che sta in un elenco chiuso, il resto si rifiuta,
+-- anche se non si riconosce. Vale per i tasti speciali <…> (TASTI_AMMESSI) e per i comandi ':' (EX_PERMESSI).
+-- Questa lista è una prima difesa e non basta da sola: i tasti girano comunque dentro bwrap, e il figlio che li esegue
+-- ferma i comandi che non stanno nella lista (comando_che_parte_non_ammesso). Si guarda come Neovim legge i tasti
 -- (vim.keycode), così <c-r>, <C-R>, <Char-18> e il byte vero sono la stessa cosa.
+
+-- Il testo è UTF-8 valido (RFC 3629: niente sequenze troppo lunghe, surrogati, oltre U+10FFFF)? I tasti speciali di Neovim
+-- (<Cmd>, <Plug>, <Lua>, il mouse) sono sequenze che cominciano per 0x80 0xFD: un byte che in UTF-8 non esiste. Un registro
+-- o un buffer che ne contiene, eseguito con @a, li fa tornare tasti; con il testo UTF-8 valido non può succedere.
+function M.utf8_valido(s)
+  if not s:find('[\128-\255]') then return true end
+  local i, n = 1, #s
+  while i <= n do
+    local c = s:byte(i)
+    if c < 0x80 then i = i + 1
+    else
+      local extra, lo, hi
+      if c >= 0xC2 and c <= 0xDF then extra, lo, hi = 1, 0x80, 0xBF
+      elseif c == 0xE0 then extra, lo, hi = 2, 0xA0, 0xBF
+      elseif c == 0xED then extra, lo, hi = 2, 0x80, 0x9F
+      elseif c >= 0xE1 and c <= 0xEF then extra, lo, hi = 2, 0x80, 0xBF
+      elseif c == 0xF0 then extra, lo, hi = 3, 0x90, 0xBF
+      elseif c == 0xF4 then extra, lo, hi = 3, 0x80, 0x8F
+      elseif c >= 0xF1 and c <= 0xF3 then extra, lo, hi = 3, 0x80, 0xBF
+      else return false end
+      local b = s:byte(i + 1)
+      if not b or b < lo or b > hi then return false end
+      for k = 2, extra do
+        local d = s:byte(i + k)
+        if not d or d < 0x80 or d > 0xBF then return false end
+      end
+      i = i + extra + 1
+    end
+  end
+  return true
+end
+
+-- Dei tasti speciali <…> passano solo questi (maiuscole e minuscole non contano), più <C-lettera>. <lt> e <Bar> scrivono
+-- un « < » e un « | » veri (nei Tasti il « | » è anche il separatore); dentro un comando : il « | » si rifiuta comunque.
+local TASTI_AMMESSI = {
+  esc = true, cr = true, bs = true, tab = true, ['s-tab'] = true, del = true, space = true, lt = true, bar = true,
+  up = true, down = true, left = true, right = true, home = true, ['end'] = true, pageup = true, pagedown = true,
+}
+
+local function tasto_ammesso(nome) return TASTI_AMMESSI[nome] or nome:match('^c%-%a$') ~= nil end
+
+-- Ritorna il motivo del primo tasto <…> non ammesso, o nil. Per ogni «<» si chiede a Neovim se da lì comincia un tasto
+-- speciale: lo è quando tradurre «<…>» dà altro che il testo stesso. Se lo è, il nome deve stare nell'elenco; se non lo è
+-- ma ha la forma di un nome (<Foo>, <ScriptCmd>, <Lua>) si rifiuta lo stesso; <sn\>, <stdio.h>, < Cmd> restano testo.
+local function tasto_non_ammesso(sol)
+  local i = 1
+  while true do
+    i = sol:find('<', i, true)
+    if not i then return nil end
+    -- la fine del tasto è uno dei primi «>» (<C->> e <t_>>> ne hanno di più): più di quattro non servono, e con un
+    -- testo pieno di «<» e «>» il lavoro non deve crescere col quadrato della lunghezza
+    local fine, j = nil, i
+    for _ = 1, 4 do
+      j = sol:find('>', j + 1, true)
+      if not j or j - i > 256 then break end
+      local candidato = sol:sub(i, j)
+      if vim.keycode(candidato) ~= '<' .. vim.keycode(candidato:sub(2)) then fine = j break end
+    end
+    if fine then
+      local tasto = sol:sub(i, fine)
+      if not tasto_ammesso(tasto:sub(2, -2):lower()) then
+        return 'la soluzione usa un tasto speciale non ammesso: ' .. tasto .. ' (ammessi <Esc>, <CR>, <BS>, <Tab>, <Del>, le frecce, <C-lettera>…)'
+      end
+      i = fine + 1
+    else
+      local nome = sol:match('^<([%w_%-]+)>', i)
+      if nome then
+        return 'la soluzione ha un nome di tasto sconosciuto: <' .. nome .. '> (per scrivere un « < » vero usa <lt>)'
+      end
+      i = i + 1
+    end
+  end
+end
+
+-- Dei comandi ':' sono ammessi solo questi (più i numeri di riga).
 local EX_PERMESSI = { s = true, substitute = true, sor = true, sort = true, noh = true, nohlsearch = true }
 
 local KENTER = vim.keycode('<kEnter>') -- l'Invio del tastierino non è un byte solo
@@ -79,13 +156,15 @@ local function comandi_eseguiti(k)
   return out
 end
 
--- Dopo l'indirizzo di un comando (righe, segni, ricerche, +/-): il resto, che comincia dal nome del comando.
+-- Dopo i due punti di troppo, gli spazi e l'indirizzo di un comando (righe, segni, ricerche, +/-): il resto, che comincia
+-- dal nome del comando. «::lua» e «: :lua» sono «:lua» anche per Neovim.
 local function dopo_indirizzo(t)
   local i = 1
   while i <= #t do
     local c = t:sub(i, i)
-    if c:match("[%s%d,.%%$*+%-;]") then i = i + 1
+    if c:match("[%s:%d,.%%$*+%-;]") then i = i + 1
     elseif c == "'" then i = i + 2 -- un segno: 'a, '<, '>
+    elseif c == '\\' and t:sub(i + 1, i + 1):match('[/?&]') then i = i + 2 -- l'ultima ricerca o sostituzione: \/ \? \&
     elseif c == '/' or c == '?' then -- una ricerca come indirizzo: /testo/
       local fine = i + 1
       while fine <= #t and t:sub(fine, fine) ~= c do fine = fine + (t:sub(fine, fine) == '\\' and 2 or 1) end
@@ -94,6 +173,58 @@ local function dopo_indirizzo(t)
     else break end
   end
   return t:sub(i)
+end
+
+local MSG_EX = ' (ammessi :s, :sort, :noh e i numeri di riga)'
+
+-- Un comando ':' scritto nei tasti (il testo fra i due punti e l'Invio): ritorna il motivo del rifiuto, o nil.
+-- Dopo l'indirizzo deve restare niente (un numero di riga) o un nome dell'elenco. Un nome che non si riconosce si
+-- rifiuta. Se il resto non comincia per una lettera (un due punti dentro una ricerca: /statue: {<CR>) è un comando solo
+-- se Neovim lo legge come tale: allora è uno di quelli che non stanno nell'elenco (:!, :=, :@, :<, :&…), se no è testo.
+local function comando_scritto_non_ammesso(testo)
+  if testo:find('[%c\128]') then return 'la soluzione usa un tasto speciale dentro un comando : (<C-r>, <C-b>, le frecce, <BS>…): scrivi il comando intero' end
+  if testo:find('[!|]') then return 'la soluzione usa un comando con ! o |' end
+  local resto = dopo_indirizzo(testo)
+  if resto == '' then return nil end
+  local nome = resto:match('^%a+')
+  if nome then
+    if EX_PERMESSI[nome] then return nil end
+    return 'comando non ammesso nella soluzione: :' .. nome .. MSG_EX
+  end
+  if pcall(vim.api.nvim_parse_cmd, resto, {}) then
+    return 'comando non ammesso nella soluzione: :' .. resto:sub(1, 1) .. MSG_EX
+  end
+  return nil
+end
+
+-- Le righe esatte che le mappature di Neovim (matchit per %, [%, ]%, g%, a%) mandano alla riga dei comandi: lette
+-- così, parola per parola, non lasciano spazio ad altro; un registro con un'altra chiamata a matchit non passa.
+local DI_NEOVIM = {
+  ['if col("\'\'") != col("$") | exe ":normal! m\'" | endif'] = true,
+  ['call matchit#MultiMatch("W",  "n")'] = true, ['call matchit#MultiMatch("W",  "o")'] = true,
+  ['call matchit#MultiMatch("bW", "n")'] = true, ['call matchit#MultiMatch("bW", "o")'] = true,
+}
+for _, verso in ipairs({ 0, 1 }) do
+  for _, modo in ipairs({ 'n', 'v', 'o' }) do DI_NEOVIM[string.format("call matchit#Match_wrapper('',%d,'%s')", verso, modo)] = true end
+end
+
+-- Le righe dei comandi che stanno per partire dentro Neovim (le guarda il figlio di `dattilo vivo --prova`, che le
+-- ferma): più strette, perché qui il comando c'è davvero. Passano :s, :sort, :noh e i numeri di riga, con un indirizzo;
+-- :&& e :normal! @x, che sono quelli delle mappature di Neovim per & e per @ in Visual-linea; e le righe esatte di matchit.
+-- Ritorna il motivo del rifiuto, o nil.
+local MODS_NORMALI
+function M.comando_che_parte_non_ammesso(riga)
+  if DI_NEOVIM[riga] or riga:match('^%s*$') then return nil end -- «:» e Invio senza comando non fanno niente
+  if riga:find('[%c|]') or riga:find('\\=', 1, true) then return 'caratteri non ammessi' end
+  local ok, p = pcall(vim.api.nvim_parse_cmd, riga, {})
+  if not ok then return 'comando che Neovim non legge' end
+  MODS_NORMALI = MODS_NORMALI or vim.api.nvim_parse_cmd('s/a/b/', {}).mods
+  if p.nextcmd ~= '' or not vim.deep_equal(p.mods, MODS_NORMALI) then return 'modificatori o comandi di seguito' end
+  local c = p.cmd
+  if c == '' or c == 'substitute' or c == 'sort' or c == 'nohlsearch' then return nil end
+  if c == '&' and riga:match('^&&?$') then return nil end
+  if c == 'normal' and p.bang and #p.args == 1 and p.args[1]:match('^@[%w@]$') then return nil end
+  return 'comando non ammesso: :' .. (c ~= '' and c or riga)
 end
 
 -- Apre la finestra dei comandi? q: sempre, q/ e q? quando il q non chiude una registrazione (qa… q /cerca<CR>).
@@ -118,6 +249,10 @@ local function apre_la_finestra(k)
 end
 
 function M.soluzione_non_ammessa(sol)
+  -- <SID> fuori da uno script fa stampare un errore a Neovim: lo si rifiuta prima di chiedergli niente
+  if sol:lower():find('<sid>', 1, true) then return 'la soluzione usa un tasto speciale non ammesso: <SID>' end
+  -- con un byte NUL vim.keycode non ritorna più: il padre (fuori dalla sandbox, senza tetto) resterebbe fermo
+  if sol:find('%z') then return 'la soluzione contiene un carattere di controllo vero: scrivi il tasto come <Esc>, <C-r>…' end
   local k = vim.keycode(sol)
   -- espressioni: il registro = (<C-r>=, "=, @=), <C-\>e nella riga dei comandi, \= in :s; filtri della shell: !!
   if k:find('\18[\18\15\16]?=') or k:find('\28e', 1, true) or k:find('"=', 1, true) or k:find('@=', 1, true)
@@ -131,16 +266,11 @@ function M.soluzione_non_ammessa(sol)
   if apre_la_finestra(k) then return 'la soluzione apre la finestra dei comandi (q:, q/, q? o <C-f>)' end
   if k:find('gQ', 1, true) then return 'la soluzione entra nel modo Ex (gQ)' end
   for _, testo in ipairs(comandi_eseguiti(k)) do
-    if testo:find('[%c\128]') then return 'la soluzione usa un tasto speciale dentro un comando : (<C-r>, <C-b>, le frecce, <BS>…): scrivi il comando intero' end
-    if testo:find('[!|]') then return 'la soluzione usa un comando con ! o |' end
-    local resto = dopo_indirizzo(testo)
-    local nome = resto:match('^%a+')
-    if nome and not EX_PERMESSI[nome] then
-      return 'comando non ammesso nella soluzione: :' .. nome .. ' (ammessi :s, :sort, :noh e i numeri di riga)'
-    end
-    if resto:match('^[@=]') then return 'comando non ammesso nella soluzione: :' .. resto:sub(1, 1) .. ' (ammessi :s, :sort, :noh e i numeri di riga)' end
+    local motivo = comando_scritto_non_ammesso(testo)
+    if motivo then return motivo end
   end
-  return nil
+  -- per ultimo, perché è il controllo che chiude tutto il resto: i tasti speciali sono solo quelli dell'elenco
+  return tasto_non_ammesso(sol)
 end
 
 
