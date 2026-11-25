@@ -48,7 +48,7 @@ Questa sezione è il contratto fra dattilo e la mod di Herdr. Il piano del lato 
 
 | Comando | Cosa fa | Uscita |
 |---|---|---|
-| `dattilo vivo --dove` | stampa una riga `{"vivo":1,"radice":"<cartella del repo dattilo>"}`. Nel tempo B `"vivo":2` | 0 |
+| `dattilo vivo --dove` | stampa una riga `{"vivo":1,"radice":"<cartella del repo dattilo>"}`. Nel tempo B `"vivo":2`; fino al compito 15 (la Modifica guidata) dattilo dice `"vivo":1` anche se `--prova` c'è già (25/11) | 0 |
 | `dattilo vivo <cartella> [opzioni di nvim]` | `XDG_DATA_HOME=<cartella>/dati`, `DATTILO_VIVO=<cartella>`, `LANGUAGE=it`, poi `exec nvim --clean -u <radice>/init.lua <opzioni>` | quella di nvim: 0 quando si chiude con `:q` dall'elenco |
 | `dattilo vivo` senza cartella, o con un percorso che non è una cartella | scrive `uso: dattilo vivo <cartella> [opzioni di nvim]` su stderr | 1 |
 | `dattilo vivo --prova <lezione.md>` **(tempo B)** | Controlla il formato. Rifà i tasti di ogni Modifica in un Neovim senza interfaccia, **solo dentro `bwrap`**: i tasti di una lezione non si eseguono mai fuori dalla sandbox, e senza sandbox (`bwrap` manca o non funziona, o c'è `DATTILO_SANDBOX=0`) il comando esce subito con 2 senza provare niente, prima di leggere il formato. Il Neovim figlio vede la cartella della lezione in sola lettura e scrive solo in una sua cartella temporanea; il verdetto lo decide il processo di fuori, che confronta il testo lasciato dal figlio con l'obiettivo. Se tutto va, riscrive le righe `par:` col numero dei tasti, in modo atomico. Tetto di 9 s. Stampa una riga JSON. | 0: `{"ok":true,"modifiche":[{"tasti":41}]}` · 1: `{"ok":false,"motivo":"…"}` (lezione rifiutata: formato, tasti non ammessi, tasti che non arrivano all'obiettivo, tempo scaduto) · 2: `{"ok":false,"motivo":"…"}` (lezione non giudicata: uso sbagliato, file illeggibile o link, con `uso: dattilo vivo --prova <lezione.md>`; `senza sandbox i tasti di una lezione non si provano`; `la sandbox non è partita: …`; `non riesco a riscrivere il par: …`; `non riesco a creare la cartella temporanea della prova: …`) |
@@ -739,7 +739,7 @@ Le cinque cose che farebbero più male a chi non sa Vim, e che nessuna prova ovv
 **File:**
 - Modifica:
   - `lua/dattilo/controlla.lua:27-40`: `prova_soluzione` diventa `M.prova_soluzione`, e le chiamate interne seguono;
-  - `lua/dattilo/cli.lua`: `vivo-prova`; `vivo-dove` → `vivo = 2`;
+  - `lua/dattilo/cli.lua`: `vivo-prova`; `vivo-dove` → `vivo = 2`; (25/11: resta `vivo = 1` finché non c'è il compito 15)
   - `bin/dattilo`: la riga `--prova` del blocco della 5.9.
 - Crea: `tests/test_vivo_prova.lua`
 
