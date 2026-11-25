@@ -153,6 +153,16 @@ local function perde_il_fatto(nome, pos)
   return (SINONIMI_Q[nome] and pos ~= 'in_piu' and require('dattilo.stato').schermo ~= 'home') or false
 end
 
+-- La frase di `perde_il_fatto`. «‹Esc›: annulli e resti qui; poi ‹Invio›: vai al riepilogo» vale solo con
+-- il cursore nella finestra della spiegazione. Fuori (un altro file, un terminale, l'aiuto, una divisione)
+-- ‹Esc› lascia il cursore dov'è e ‹Invio› non porta al riepilogo: prima si torna al codice, e la frase
+-- dice come (in un altro file con :b e il numero del codice, in una finestra in più con :q).
+local function frase_perde_il_fatto(pos)
+  if pos == 'altro' then return 'cmd_noto_spiegazione_altro' end
+  if pos == 'in_piu' then return 'cmd_noto_spiegazione_finestra' end
+  return 'cmd_noto_spiegazione'
+end
+
 -- La riga dei comandi (3.4, righe 2-4): vuota, un comando che vale qui, a metà di uno, o un altro.
 local function nella_riga_dei_comandi(riga, testo_comandi, pos, atteso)
   local validi = comandi_validi(testo_comandi, pos, atteso)
@@ -167,7 +177,8 @@ local function nella_riga_dei_comandi(riga, testo_comandi, pos, atteso)
   end
   if riga == 'w' and validi.w then return { titolo = T.posti.cmd_vuota.titolo, testo = T.cmd_w } end
   if SINONIMI_Q[riga] or SINONIMI_QA[riga] or (validi[riga] and riga ~= 'w') then
-    return posto_di(perde_il_fatto(riga, pos) and 'cmd_noto_spiegazione' or 'cmd_noto', riga, spiega(riga, pos))
+    if perde_il_fatto(riga, pos) then return posto_di(frase_perde_il_fatto(pos), riga, spiega(riga, pos), atteso) end
+    return posto_di('cmd_noto', riga, spiega(riga, pos))
   end
   -- a metà di un comando che vale qui: le lettere che mancano (mai ‹Esc› per primo, che lo cancellerebbe)
   local finire = {}

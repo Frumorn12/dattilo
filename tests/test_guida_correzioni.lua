@@ -571,15 +571,121 @@ T['B2: nella spiegazione, in una finestra in più, :q chiude solo la finestra'] 
   end)
 end
 
--- Ma `:qa` chiude dattilo anche da una finestra in più: la frase c'è anche lì.
+-- Ma `:qa` chiude dattilo anche da una finestra in più: la frase c'è anche lì, con la strada vera (giro
+-- finale: da lì ‹Esc› non basta, e ‹Invio› non porta al riepilogo: si chiude prima la finestra con ‹:q›).
 T['B2: nella spiegazione, in una finestra in più, :qa dice che la lezione non conta, e non la segna'] = function()
   local c = M.cartella()
   con({ cartella = c }, function(F)
     alla_spiegazione(F)
     F:input('<F1>:qa')
-    nel_posto(F, atteso('cmd_noto_spiegazione', 'qa', TT.spiega_comando.qa))
+    nel_posto(F, atteso('cmd_noto_spiegazione_finestra', 'qa', TT.spiega_comando.qa))
     vero(esce(F), 'il figlio non è uscito')
     uguale(progressi(c)['rifallo/001-somma'], nil)
+  end)
+end
+
+---------------------------------------------------------------- B2 (giro finale): fuori dalla finestra della spiegazione la strada è un'altra
+
+-- Le file di tasti di una frase, in ordine: «‹:b4› ‹Invio›» è la fila ':b4<CR>'.
+local function file_di_tasti(s)
+  local file, i = {}, 1
+  while true do
+    local a = s:find('‹', i, true)
+    if not a then break end
+    local fila, j = {}, a
+    while true do
+      local _, f, k = s:find('^‹([^›]*)›', j)
+      if not f then break end
+      fila[#fila + 1] = TT.neovim(k)
+      if s:find('^ ‹', f + 1) then j = f + 2 else j = f + 1 break end
+    end
+    file[#file + 1] = table.concat(fila)
+    i = j
+  end
+  return file
+end
+
+local function buf_giusto(F) return F:lua('return require("dattilo.schermo").mostrato') end
+
+-- Il riquadro intero a 80×24 e a 120×40: «Adesso» e «Comandi» non finiscono con «…».
+local function intero(F, adesso, comandi, cosa)
+  for _, d in ipairs({ { 80, 24 }, { 120, 40 } }) do
+    F:lua('vim.o.columns, vim.o.lines = ...', d[1], d[2])
+    local A
+    F:aspetta(function() A = F:a_schermo() return A ~= nil and A.sezioni.Adesso == M.a_schermo(adesso) and A.righe[1] and vim.fn.strdisplaywidth(A.righe[1]) == d[1] end)
+    uguale(A.sezioni.Adesso, M.a_schermo(adesso), cosa)
+    uguale(A.sezioni.Comandi, M.a_schermo(comandi), cosa)
+    vero(A.finisce.Adesso:sub(-3) ~= '…' and A.finisce.Comandi:sub(-3) ~= '…', cosa .. ' ' .. vim.inspect(A.righe))
+    uguale(A.alto, #A.righe, cosa .. ': la finestra non mostra tutto il riquadro a ' .. d[1] .. '×' .. d[2])
+  end
+end
+
+-- Dalla spiegazione, fuori dalla sua finestra, si scrive :qa o :q. La frase dice «‹Esc›: annulli e resti
+-- qui; poi …» e chi la segue alla lettera deve arrivare al riepilogo: la prova preme davvero le file di
+-- tasti della frase, una dopo l'altra, dopo quella che esegue il comando.
+local FUORI = {
+  { nome = 'F1 (l\'aiuto) e :qa', entra = '<F1>', cmd = ':qa', riga = 'qa', frase = 'cmd_noto_spiegazione_finestra' },
+  { nome = 'Ctrl-^ (un altro file) e :q', entra = '<C-^>', cmd = ':q', riga = 'q', frase = 'cmd_noto_spiegazione_altro' },
+  { nome = 'Ctrl-^ (un altro file) e :qa', entra = '<C-^>', cmd = ':qa', riga = 'qa', frase = 'cmd_noto_spiegazione_altro' },
+  { nome = 'un terminale e :q', entra = ':terminal<CR><C-\\><C-n>', cmd = ':q', riga = 'q', frase = 'cmd_noto_spiegazione_altro' },
+  { nome = 'una divisione (Ctrl-w s) e :qa', entra = '<C-w>s', cmd = ':qa', riga = 'qa', frase = 'cmd_noto_spiegazione_finestra' },
+  { nome = 'Ctrl-^ (un altro file) e :salta', entra = '<C-^>', cmd = ':salta', riga = 'salta', frase = 'cmd_noto_spiegazione_altro' },
+}
+
+local SPIEGA = { qa = TT.spiega_comando.qa, q = TT.spiega_comando.q, salta = TT.spiega_comando.salta }
+
+for _, caso in ipairs(FUORI) do
+  T['B2: ' .. caso.nome .. ' dalla spiegazione: la frase porta al riepilogo'] = function()
+    con({}, function(F)
+      alla_spiegazione(F)
+      F:input(caso.entra)
+      F:input(caso.cmd)
+      local A, titolo_vero
+      F:aspetta(function() local r = F:riquadro() A, titolo_vero = r.sezioni.Adesso, r.titolo return titolo_vero == 'RIGA DEI COMANDI' and A:find('esegui :' .. caso.riga, 1, true) ~= nil end)
+      local atteso_buf = buf_giusto(F)
+      uguale(F:modo(), 'c')
+      -- la frase promette qualcosa dopo ‹Esc›: si fa, fila per fila (la prima è l'‹Invio› che esegue il comando)
+      local file = file_di_tasti(A)
+      uguale(file[1], '<CR>', A)
+      uguale(file[2], '<Esc>', A)
+      for i = 2, #file do
+        F:input(file[i])
+        vero(not F:messaggi():find('E%d+'), 'dopo ' .. file[i] .. ': ' .. F:messaggi())
+      end
+      vero(F:aspetta(function() return passo(F) == 'fine' end, 1500),
+        string.format('seguendo la frase «%s» non si arriva al riepilogo: passo %s, Adesso «%s»', A, tostring(passo(F)), tostring(F:adesso())))
+      -- e la frase è quella scritta per questo posto
+      local titolo_atteso, testo_atteso = TT.posto(caso.frase, caso.riga, SPIEGA[caso.riga], atteso_buf)
+      uguale({ titolo_vero, A }, { titolo_atteso, testo_atteso }, caso.nome)
+      uguale(F:modo(), 'n')
+    end)
+  end
+end
+
+-- La frase nuova sta intera nel riquadro a 80×24 e a 120×40.
+T['B2: le frasi di fuori dalla spiegazione stanno intere a 80×24 e 120×40'] = function()
+  for _, caso in ipairs({ FUORI[1], FUORI[2] }) do
+    con({}, function(F)
+      alla_spiegazione(F)
+      F:input(caso.entra)
+      F:input(caso.cmd)
+      F:aspetta(function() local r = F:riquadro() return r.titolo == 'RIGA DEI COMANDI' and r.sezioni.Adesso:find('esegui :' .. caso.riga, 1, true) ~= nil end)
+      local _, testo_atteso = TT.posto(caso.frase, caso.riga, SPIEGA[caso.riga], buf_giusto(F))
+      intero(F, testo_atteso, F:riquadro().sezioni.Comandi, caso.nome)
+    end)
+  end
+end
+
+-- Dentro la finestra della spiegazione la frase è quella di sempre: ‹Esc› e poi ‹Invio›.
+T['B2: nella finestra della spiegazione la frase resta con ‹Esc› e poi ‹Invio›'] = function()
+  con({}, function(F)
+    alla_spiegazione(F)
+    F:input(':qa')
+    local A = F:riquadro().sezioni.Adesso
+    uguale(A, select(2, TT.posto('cmd_noto_spiegazione', 'qa', TT.spiega_comando.qa)))
+    vero(A:find('poi ‹Invio›: vai al riepilogo', 1, true), A)
+    F:input('<Esc><CR>')
+    vero(F:aspetta(function() return passo(F) == 'fine' end, 1500), tostring(passo(F)))
   end)
 end
 

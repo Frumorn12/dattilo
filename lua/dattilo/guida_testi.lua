@@ -192,6 +192,10 @@ M.posti = {
   cmd_vuota_ritorno = { titolo = 'RIGA DEI COMANDI', testo = 'Stai scrivendo un comando. %s ‹Esc›: annulli e torni dov\'eri.' },
   -- Non è nella 3.4: :q o :qa dalla spiegazione. La lezione si segna solo al riepilogo: uscendo da qui non conta.
   cmd_noto_spiegazione = { titolo = 'RIGA DEI COMANDI', testo = '‹Invio›: esegui :%s, cioè %s. Ma la lezione non conta come fatta finché non arrivi al riepilogo. ‹Esc›: annulli e resti qui; poi ‹Invio›: vai al riepilogo e la finisci.' },
+  -- Non sono nella 3.4: lo stesso comando scritto fuori dalla finestra della spiegazione. Lì ‹Esc› non basta e
+  -- ‹Invio› non porta al riepilogo: prima si torna al codice (in un altro file con :b e il numero, in una finestra in più con :q).
+  cmd_noto_spiegazione_altro = { titolo = 'RIGA DEI COMANDI', testo = '‹Invio›: esegui :%s, cioè %s. Ma la lezione non conta come fatta finché non arrivi al riepilogo. ‹Esc›: annulli e resti qui; poi ‹:b%d› ‹Invio›: torni al codice della lezione; poi ‹Invio›: vai al riepilogo e la finisci.' },
+  cmd_noto_spiegazione_finestra = { titolo = 'RIGA DEI COMANDI', testo = '‹Invio›: esegui :%s, cioè %s. Ma la lezione non conta come fatta finché non arrivi al riepilogo. ‹Esc›: annulli e resti qui; poi ‹:q› ‹Invio›: chiudi questa finestra e torni al codice; poi ‹Invio›: vai al riepilogo e la finisci.' },
 }
 
 -- Un pezzo di cmd_parziale: i tasti che mancano, il comando intero e cosa fa.
