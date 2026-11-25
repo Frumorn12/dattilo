@@ -1560,3 +1560,4 @@ I testi della guida nuovi o cambiati rispetto a quelli approvati, uno per riga, 
 
 **Dopo l'unione dei rami (25/11): compiti 8 e 9 con le correzioni 5 e 6.**
 - «Comandi» della spiegazione (`comandi_spiegazione`) scrive anche ‹:salta› e ‹:ultima›, come `comandi_testo` del briefing: la spiegazione legge `comandi_spiegazione`, e senza quelle due voci la guida diceva «qui non serve» a un comando che funziona. La prova «ogni comando scritto fa quello che dice» guarda ogni voce di quella riga.
+- Le abbreviazioni di `:salta`, `:ultima` ed `:elenco` (`vivo.lua`, `crea_comandi`) guardano la riga senza gli spazi davanti, come quelle di `:q` (B3): la guida riconosce `: salta` e promette «‹Invio›: esegui :salta», e prima Vim rispondeva E492.

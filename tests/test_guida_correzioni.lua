@@ -290,6 +290,45 @@ T['B3: : q con lo spazio davanti lascia la lezione, come la guida dice'] = funct
   end)
 end
 
+-- Dopo l'unione col compito 8: anche :salta, :ultima ed :elenco valgono con lo spazio davanti, perché
+-- la guida li riconosce (trim) e dice «‹Invio›: esegui :salta». Senza, Vim dava E492 (non è un comando).
+local function id_lezione(F) return F:lua('local s = require("dattilo.lezione").s return s and s.L.id or vim.NIL') end
+
+T['B3: : salta con lo spazio davanti apre la prossima, come la guida dice'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    uguale(id_lezione(F), '001-somma')
+    F:input(': salta')
+    nel_posto(F, atteso('cmd_noto', 'salta', TT.spiega_comando.salta))
+    F:input('<CR>')
+    vero(F:aspetta(function() return id_lezione(F) == '002-saluto' end), 'lezione: ' .. tostring(id_lezione(F)) .. ' ' .. F:messaggi())
+  end)
+end
+
+T['B3: : ultima con lo spazio davanti apre l\'ultima modifica, come la guida dice'] = function()
+  con({}, function(F)
+    in_batti(F, 'n')
+    F:input(':  ultima')
+    nel_posto(F, atteso('cmd_noto', 'ultima', TT.spiega_comando.ultima))
+    F:input('<CR>')
+    vero(F:aspetta(function() return id_lezione(F) == '002-saluto' end), 'lezione: ' .. tostring(id_lezione(F)) .. ' ' .. F:messaggi())
+  end)
+end
+
+-- :elenco vale dove «Comandi» lo scrive: in attesa (senza lezioni).
+T['B3: : elenco con lo spazio davanti apre l\'elenco, come la guida dice'] = function()
+  local c = M.cartella()
+  for _, f in ipairs(vim.fn.glob(c .. '/dati/dattilo/pacchetti/rifallo/lezioni/*.md', false, true)) do vim.fn.delete(f) end
+  con({ cartella = c }, function(F)
+    vero(F:aspetta(function() local r = F:riquadro() return r ~= nil and r.titolo == TT.titoli.attesa end), 'non è in attesa')
+    F:input(': elenco')
+    nel_posto(F, atteso('cmd_noto', 'elenco', TT.spiega_comando.elenco))
+    F:input('<CR>')
+    vero(F:aspetta(function() return F:riquadro().titolo == TT.titoli.elenco end), 'titolo: ' .. tostring(F:riquadro().titolo) .. ' ' .. F:messaggi())
+  end)
+  vim.fn.delete(c, 'rf')
+end
+
 -- Senza la guida niente cambia: le abbreviazioni di sempre non guardano gli spazi.
 T['B3: senza la guida le abbreviazioni di :q sono quelle di sempre'] = function()
   con({ vivo = false, cartella = M.cartella() }, function(F)

@@ -593,7 +593,8 @@ end
 ---------------------------------------------------------------- i comandi :salta, :ultima ed :elenco
 
 -- Come `:q` in init.lua: un comando con la maiuscola e l'abbreviazione in minuscolo, che vale solo
--- scrivendo il nome intero. Esistono solo con `vivo` acceso.
+-- scrivendo il nome intero, anche con degli spazi davanti (`: salta`: la guida li legge uguale).
+-- Esistono solo con `vivo` acceso.
 local COMANDI = {
   { nome = 'salta', comando = 'DattiloSalta', desc = 'Lascia la lezione e apri la prossima' },
   { nome = 'ultima', comando = 'DattiloUltima', desc = 'Apri l\'ultima modifica di Claude' },
@@ -604,7 +605,7 @@ local function crea_comandi()
   for _, c in ipairs(COMANDI) do
     -- un errore dentro il comando va nel riquadro, non nella riga dei messaggi (G5)
     vim.api.nvim_create_user_command(c.comando, function() guida.protetta(function() M[c.nome]() end) end, { desc = c.desc })
-    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && getcmdline() ==# '%s') ? '%s' : '%s'", c.nome, c.nome, c.comando, c.nome))
+    vim.cmd(string.format("cnoreabbrev <expr> %s (getcmdtype() ==# ':' && trim(getcmdline()) ==# '%s') ? '%s' : '%s'", c.nome, c.nome, c.comando, c.nome))
   end
 end
 
